@@ -62,51 +62,52 @@ export default async function Home() {
   return (
     <div className="flex flex-col">
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-[#080d18] pb-28 pt-32 md:pt-52">
-        {/* Grid overlay */}
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#06b6d408_1px,transparent_1px),linear-gradient(to_bottom,#06b6d408_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_70%_55%_at_50%_0%,#000_55%,transparent_100%)]" />
-        {/* Glow blobs */}
-        <div className="pointer-events-none absolute -top-32 right-1/3 h-[700px] w-[700px] rounded-full bg-cyan-500/12 blur-[160px]" />
-        <div className="pointer-events-none absolute top-1/2 left-1/4 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/8 blur-[140px]" />
+      <section className="relative overflow-hidden bg-[#080d18] pb-20 pt-16 md:pt-28">
+        {/* Grid overlay - softened */}
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#06b6d405_1px,transparent_1px),linear-gradient(to_bottom,#06b6d405_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_60%_at_50%_0%,#000_40%,transparent_100%)]" />
+        
+        {/* Glow blobs - more natural/organic blend */}
+        <div className="pointer-events-none absolute -top-40 -left-20 h-[600px] w-[600px] rounded-full bg-cyan-600/10 blur-[130px]" />
+        <div className="pointer-events-none absolute top-1/4 -right-10 h-[500px] w-[500px] rounded-full bg-emerald-600/5 blur-[120px]" />
 
         <div className="container relative z-10 mx-auto px-4 text-center">
-          <Badge variant="outline" className="mb-8 inline-flex items-center gap-1.5 border-cyan-500/30 bg-cyan-500/10 text-cyan-400 backdrop-blur-sm px-4 py-1.5 text-sm rounded-full">
-            <Zap className="h-3.5 w-3.5" />
-            Diskon hingga 44% · Mulai dari Rp 10.000
+          <Badge variant="outline" className="mb-6 inline-flex items-center gap-2 border-cyan-500/20 bg-cyan-500/5 text-cyan-400 backdrop-blur-sm px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-full">
+            <Zap className="h-3 w-3" />
+            Promo Spesial Pelajar & Gamer
           </Badge>
 
-          <h1 className="mx-auto max-w-5xl text-5xl font-extrabold tracking-tight text-white sm:text-7xl lg:text-[5.5rem] leading-[1.08]">
-            Empowering Your{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400">
-              Digital World
+          <h1 className="mx-auto max-w-4xl text-4xl font-extrabold tracking-tight text-white sm:text-6xl lg:text-7xl leading-[1.1]">
+            Wujudkan Dunia Digital Kamu Bersama{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-emerald-400 to-teal-400">
+              EterShop
             </span>
           </h1>
 
-          <p className="mx-auto mt-8 max-w-2xl text-lg text-slate-400 md:text-xl leading-relaxed">
-            EterShop adalah toko digital terpercaya untuk pelajar dan gamer. Server Minecraft, skin kustom, desain kreatif, dan pembuatan website — semua dalam satu tempat.
+          <p className="mx-auto mt-6 max-w-2xl text-base text-slate-400 md:text-lg leading-relaxed px-4">
+            Destinasi terpercaya untuk Server Minecraft, Skin Kustom, Desain Kreatif, dan Website Modern. Kualitas premium dengan harga yang bersahabat bagi kantong pelajar.
           </p>
 
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/shop"
-              className="inline-flex items-center justify-center gap-2 h-14 px-8 rounded-full font-bold text-base text-white bg-gradient-to-r from-cyan-500 to-emerald-500 shadow-[0_0_40px_rgba(6,182,212,0.3)] hover:shadow-[0_0_60px_rgba(6,182,212,0.5)] hover:scale-105 active:scale-95 transition-all"
+              className="inline-flex items-center justify-center gap-2 h-14 px-10 rounded-full font-bold text-base text-white bg-gradient-to-r from-cyan-500 to-emerald-500 shadow-[0_10px_30px_-10px_rgba(6,182,212,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(6,182,212,0.6)] hover:-translate-y-0.5 active:scale-95 transition-all"
             >
-              Jelajahi Katalog <ArrowRight className="h-5 w-5" />
+              Mulai Belanja <ArrowRight className="h-5 w-5" />
             </Link>
             <Link
               href="https://dsc.gg/etershop"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 h-14 px-8 rounded-full font-semibold text-base text-white border-2 border-cyan-500/20 bg-cyan-500/5 backdrop-blur-md hover:bg-cyan-500/10 transition-all"
+              className="inline-flex items-center justify-center gap-2 h-14 px-10 rounded-full font-semibold text-base text-white border border-white/10 bg-white/5 backdrop-blur-md hover:bg-white/10 hover:-translate-y-0.5 transition-all"
             >
-              <Users className="h-5 w-5" /> Gabung Komunitas
+              <Users className="h-5 w-5" /> Komunitas Discord
             </Link>
           </div>
 
           {/* Trust bar */}
-          <div className="mt-20 flex flex-wrap items-center justify-center gap-6 md:gap-12">
+          <div className="mt-16 flex flex-wrap items-center justify-center gap-6 md:gap-16 border-t border-white/5 pt-10">
             {stats.map(({ icon: Icon, label, color }) => (
-              <div key={label} className="flex items-center gap-2 text-sm font-medium text-slate-400">
+              <div key={label} className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-widest text-slate-500">
                 <Icon className={`h-4 w-4 ${color}`} />
                 {label}
               </div>
@@ -114,6 +115,7 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
 
       {/* ── Features ── */}
       <section className="py-24 bg-[#080d18] border-t border-cyan-500/10">
