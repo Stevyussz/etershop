@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EterShop 💎
 
-## Getting Started
+Toko Digital Pelajar & Gamer terpercaya untuk kebutuhan hosting server Minecraft, skin custom, desain logo, dan pembuatan website.
 
-First, run the development server:
+![EterShop Hero](https://images.unsplash.com/photo-1614332287897-cdc485fa562d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80)
 
+## ✨ Fitur Unggulan
+
+- **🚀 Performa Tinggi**: Dibangun dengan Next.js 15 & Tailwind CSS untuk kecepatan maksimal.
+- **🎨 Desain Premium**: Antarmuka modern "Deep Ocean Navy" yang nyaman dan responsif.
+- **🔍 Pencarian Pintar**: Temukan produk dengan instan melalui fitur pencarian global.
+- **❤️ Wishlist**: Simpan produk favoritmu untuk dibeli nanti.
+- **📱 Checkout WhatsApp**: Integrasi langsung ke WhatsApp untuk proses pembelian yang mudah dan personal.
+- **🛠️ Admin Dashboard**: Kelola inventaris, stok, dan kategori produk dengan mudah.
+- **📦 Manajemen Stok**: Peringatan stok menipis dan kontrol visibilitas produk.
+
+## 🚀 Teknologi yang Digunakan
+
+- **Framework**: [Next.js 14 (App Router)](https://nextjs.org/)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
+- **UI Components**: [Radix UI](https://www.radix-ui.com/) & [Lucide React](https://lucide.dev/)
+- **Database**: [Prisma ORM](https://www.prisma.io/) dengan SQLite
+- **State Management**: [Zustand](https://github.com/pmndrs/zustand)
+- **Animations**: [Framer Motion](https://www.framer.com/motion/)
+
+## 🛠️ Cara Menjalankan Project
+
+### 1. Clone Repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/Stevyussz/etershop.git
+cd etershop
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install Dependencies
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Setup Database
+```bash
+npx prisma db push
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 4. Jalankan Development Server
+```bash
+npm run dev
+```
 
-## Learn More
+Buka [http://localhost:3000](http://localhost:3000) pada browser Anda.
 
-To learn more about Next.js, take a look at the following resources:
+## 📄 Lisensi
+Distribusi di bawah lisensi EterShop. Lihat `LICENSE` untuk informasi lebih lanjut.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+Dibuat dengan ❤️ oleh [EterShop Team](https://github.com/Stevyussz)
