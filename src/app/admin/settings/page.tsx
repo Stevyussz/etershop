@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma'
 import { updateSiteSettings } from '../actions'
-import { Settings, Image as ImageIcon, Link as LinkIcon, Bell, Save } from 'lucide-react'
+import { Settings, Image as ImageIcon, Link as LinkIcon, Bell, Save, Moon } from 'lucide-react'
 
 export default async function SettingsPage() {
   const settings = await prisma.siteSettings.findUnique({
@@ -58,17 +58,32 @@ export default async function SettingsPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-4 bg-cyan-500/5 rounded-xl border border-cyan-500/10">
-              <input
-                type="checkbox"
-                name="popupActive"
-                id="popupActive"
-                defaultChecked={settings?.popupActive}
-                className="h-5 w-5 rounded border-cyan-500/30 bg-[#0c1526] text-cyan-500 focus:ring-cyan-500/30 transition-all cursor-pointer"
-              />
-              <label htmlFor="popupActive" className="text-sm font-bold text-white cursor-pointer select-none">
-                Aktifkan Popup Pengumuman
-              </label>
+            <div className="flex flex-col gap-4 p-4 bg-cyan-500/5 rounded-xl border border-cyan-500/10">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  name="popupActive"
+                  id="popupActive"
+                  defaultChecked={settings?.popupActive}
+                  className="h-5 w-5 rounded border-cyan-500/30 bg-[#0c1526] text-cyan-500 focus:ring-cyan-500/30 transition-all cursor-pointer"
+                />
+                <label htmlFor="popupActive" className="text-sm font-bold text-white cursor-pointer select-none">
+                  Aktifkan Popup Pengumuman
+                </label>
+              </div>
+
+              <div className="pt-3 border-t border-white/5 flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  name="ramadhanMode"
+                  id="ramadhanMode"
+                  defaultChecked={settings?.ramadhanMode}
+                  className="h-5 w-5 rounded border-emerald-500/30 bg-[#0c1526] text-emerald-500 focus:ring-emerald-500/30 transition-all cursor-pointer"
+                />
+                <label htmlFor="ramadhanMode" className="text-sm font-bold text-emerald-400 flex items-center gap-2 cursor-pointer select-none">
+                  <Moon className="h-4 w-4" /> Aktifkan Event Ramadhan (Tema Gold/Moon)
+                </label>
+              </div>
             </div>
 
             <div className="pt-4 border-t border-cyan-500/10 flex justify-end">

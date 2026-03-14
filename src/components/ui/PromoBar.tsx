@@ -3,15 +3,27 @@
 import { useState, useEffect } from 'react'
 import { X, Tag } from 'lucide-react'
 
-const promos = [
-  { id: 1, text: 'Diskon hingga 44% untuk semua produk digital!' },
-  { id: 2, text: 'Gratis ongkir (biaya layanan) — semua order!' },
-  { id: 3, text: 'Garansi uang kembali S&K Berlaku' },
-]
+interface PromoBarProps {
+  ramadhanMode?: boolean
+}
 
-export function PromoBar() {
+export function PromoBar({ ramadhanMode }: PromoBarProps) {
   const [visible, setVisible] = useState(false)
   const [index, setIndex] = useState(0)
+
+  const defaultPromos = [
+    { id: 1, text: 'Diskon hingga 44% untuk semua produk digital!' },
+    { id: 2, text: 'Gratis ongkir (biaya layanan) — semua order!' },
+    { id: 3, text: 'Garansi uang kembali S&K Berlaku' },
+  ]
+
+  const ramadhanPromos = [
+    { id: 1, text: '🌙 PROMO RAMADHAN: Diskon hingga 78% untuk semua layanan!' },
+    { id: 2, text: '✨ Bonus Konsultasi GRATIS & Prioritas Pengerjaan di bulan suci.' },
+    { id: 3, text: '🕋 Paket Website Ramadhan mulai dari Rp 30rb saja!' },
+  ]
+
+  const promos = ramadhanMode ? ramadhanPromos : defaultPromos
 
   useEffect(() => {
     const dismissed = sessionStorage.getItem('promo-dismissed')

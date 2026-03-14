@@ -67,11 +67,12 @@ export async function updateSiteSettings(formData: FormData) {
   const popupImageUrl = (formData.get('popupImageUrl') as string) || null
   const popupLink = (formData.get('popupLink') as string) || null
   const popupActive = formData.get('popupActive') === 'on'
+  const ramadhanMode = formData.get('ramadhanMode') === 'on'
 
   await prisma.siteSettings.upsert({
     where: { id: 'main' },
-    update: { popupImageUrl, popupLink, popupActive },
-    create: { id: 'main', popupImageUrl, popupLink, popupActive },
+    update: { popupImageUrl, popupLink, popupActive, ramadhanMode },
+    create: { id: 'main', popupImageUrl, popupLink, popupActive, ramadhanMode },
   })
 
   revalidatePath('/')

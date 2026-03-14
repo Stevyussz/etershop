@@ -41,5 +41,7 @@ model SiteSettings {
   popupLink      String?
   popupActive    Boolean  @default(false)
   
+  ramadhanMode   Boolean  @default(false)
+
   updatedAt      DateTime @updatedAt
 }

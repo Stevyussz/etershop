@@ -33,7 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="id" className="dark scroll-smooth">
       <body className={`${font.variable} font-sans bg-[#080d18] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200 antialiased`}>
-        <PromoBar />
+        <PromoBar ramadhanMode={settings?.ramadhanMode} />
         <Navbar />
         <main className="flex-1">
           {children}

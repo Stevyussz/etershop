@@ -6,10 +6,15 @@ import {
   ShoppingCart, Server, Palette, Layers, ArrowRight,
   ShieldCheck, Zap, MessageCircle, Star, Users, Clock
 } from 'lucide-react'
+import { RamadhanSection } from '@/components/home/RamadhanSection'
 
 export const revalidate = 60
 
 export default async function Home() {
+  const settings = await prisma.siteSettings.findUnique({
+    where: { id: 'main' }
+  })
+
   const featuredProducts = await prisma.product.findMany({
     where: { isFeatured: true },
     include: { category: true },
@@ -150,6 +155,9 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      {/* ── Ramadhan Special ── */}
+      {settings?.ramadhanMode && <RamadhanSection />}
 
       {/* ── Featured Products ── */}
       <section className="py-24 bg-[#060b15] border-t border-cyan-500/10">
