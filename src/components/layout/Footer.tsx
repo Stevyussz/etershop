@@ -48,11 +48,6 @@ export function Footer() {
                   <LayoutGrid className="h-3.5 w-3.5" /> Katalog Produk
                 </Link>
               </li>
-              <li>
-                <Link href="/admin" className="flex items-center gap-2 text-slate-400 hover:text-cyan-400 transition-colors">
-                  <ShieldCheck className="h-3.5 w-3.5" /> Admin Panel
-                </Link>
-              </li>
             </ul>
           </div>
 

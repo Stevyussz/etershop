@@ -62,7 +62,7 @@ export default async function Home() {
   return (
     <div className="flex flex-col">
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-[#080d18] pb-20 pt-16 md:pt-28">
+      <section className="relative overflow-hidden bg-[#080d18] pb-20 pt-12 md:pt-20">
         {/* Grid overlay - softened */}
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#06b6d405_1px,transparent_1px),linear-gradient(to_bottom,#06b6d405_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_60%_at_50%_0%,#000_40%,transparent_100%)]" />
         
@@ -76,10 +76,10 @@ export default async function Home() {
             Promo Spesial Pelajar & Gamer
           </Badge>
 
-          <h1 className="mx-auto max-w-4xl text-4xl font-extrabold tracking-tight text-white sm:text-6xl lg:text-7xl leading-[1.1]">
-            Wujudkan Dunia Digital Kamu Bersama{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-emerald-400 to-teal-400">
-              EterShop
+          <h1 className="mx-auto max-w-5xl text-5xl font-extrabold tracking-tight text-white sm:text-7xl lg:text-[5.5rem] leading-[1.08]">
+            Empowering Your{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400">
+              Digital World
             </span>
           </h1>
 
