@@ -65,7 +65,30 @@ export default async function Home() {
   ]
 
   return (
-    <div className="flex flex-col">
+    <div className="min-h-screen bg-[#080d18]">
+      {/* Structured Data for SEO */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'OnlineStore',
+            name: 'EterShop',
+            description: 'Toko Digital Pelajar & Gamer Terpercaya',
+            url: 'https://etershop.vercel.app',
+            logo: 'https://etershop.vercel.app/logo.jpg',
+            sameAs: [
+              'https://dsc.gg/etershop',
+              'https://wa.me/6285175224481'
+            ],
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: 'https://etershop.vercel.app/search?q={search_term_string}',
+              'query-input': 'required name=search_term_string'
+            }
+          })
+        }}
+      />
       {/* ── Hero ── */}
       <section className="relative overflow-hidden bg-[#080d18] pb-20 pt-12 md:pt-20">
         {/* Grid overlay - softened */}

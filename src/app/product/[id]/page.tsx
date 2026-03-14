@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -13,6 +14,35 @@ import {
 } from 'lucide-react'
 
 export const revalidate = 60
+
+export async function generateMetadata(props: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const params = await props.params
+  const product = await prisma.product.findUnique({
+    where: { id: params.id },
+    include: { category: true }
+  })
+
+  if (!product) return { title: 'Produk Tidak Ditemukan' }
+
+  return {
+    title: product.title,
+    description: product.description.substring(0, 160),
+    openGraph: {
+      title: `${product.title} | EterShop`,
+      description: product.description.substring(0, 160),
+      images: product.imageUrl ? [product.imageUrl] : ['/logo.jpg'],
+      type: 'article',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: product.title,
+      description: product.description.substring(0, 160),
+      images: product.imageUrl ? [product.imageUrl] : ['/logo.jpg'],
+    }
+  }
+}
 
 export default async function ProductPage(props: {
   params: Promise<{ id: string }>
@@ -40,6 +70,31 @@ export default async function ProductPage(props: {
 
   return (
     <div className="min-h-screen bg-[#080d18]">
+      {/* Structured Data for SEO */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: product.title,
+            description: product.description,
+            image: product.imageUrl || 'https://etershop.vercel.app/logo.jpg',
+            sku: product.id,
+            offers: {
+              '@type': 'Offer',
+              price: product.price,
+              priceCurrency: 'IDR',
+              availability: product.stock === 0 ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+              url: `https://etershop.vercel.app/product/${product.id}`
+            },
+            brand: {
+              '@type': 'Brand',
+              name: 'EterShop'
+            }
+          })
+        }}
+      />
       <div className="pointer-events-none fixed top-0 right-1/3 h-[700px] w-[700px] rounded-full bg-cyan-500/8 blur-[180px]" />
 
       <div className="container relative z-10 mx-auto px-4 py-20 md:py-28">
