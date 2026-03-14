@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { LayoutDashboard, Package, Tags, ArrowLeft, Store } from 'lucide-react'
+import { LayoutDashboard, Package, Tags, ArrowLeft, Store, Settings } from 'lucide-react'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -34,7 +34,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Tags className="h-4 w-4 text-teal-400" />
             Kategori
           </Link>
+          <Link href="/admin/settings" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-cyan-500/10 hover:text-white transition-all">
+            <Settings className="h-4 w-4 text-slate-400" />
+            Pengaturan
+          </Link>
         </nav>
+
       </aside>
 
       {/* Main Content */}

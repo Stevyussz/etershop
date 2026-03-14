@@ -61,3 +61,20 @@ export async function toggleProductActive(id: string, isActive: boolean) {
   revalidatePath('/admin/products')
   revalidatePath('/shop')
 }
+
+// Site Settings
+export async function updateSiteSettings(formData: FormData) {
+  const popupImageUrl = (formData.get('popupImageUrl') as string) || null
+  const popupLink = (formData.get('popupLink') as string) || null
+  const popupActive = formData.get('popupActive') === 'on'
+
+  await prisma.siteSettings.upsert({
+    where: { id: 'main' },
+    update: { popupImageUrl, popupLink, popupActive },
+    create: { id: 'main', popupImageUrl, popupLink, popupActive },
+  })
+
+  revalidatePath('/')
+  revalidatePath('/shop')
+  revalidatePath('/admin')
+}

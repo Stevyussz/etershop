@@ -5,6 +5,8 @@ import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { ScrollToTop } from '@/components/ui/ScrollToTop'
 import { PromoBar } from '@/components/ui/PromoBar'
+import { PopupOverlay } from '@/components/ui/PopupOverlay'
+import prisma from '@/lib/prisma'
 
 const font = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -18,12 +20,16 @@ export const metadata: Metadata = {
   keywords: ['etershop', 'toko digital', 'minecraft hosting', 'skin minecraft', 'desain logo', 'pembuatan website'],
   openGraph: {
     title: 'EterShop — Toko Digital Pelajar & Gamer',
-    description: 'Produk digital berkualitas tinggi dengan harga terjangkau. Garansi & support aktif.',
+    description: 'Produk digital berkualitas high-tier dengan harga terjangkau. Garansi & support aktif.',
     type: 'website',
   },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const settings = await prisma.siteSettings.findUnique({
+    where: { id: 'main' }
+  })
+
   return (
     <html lang="id" className="dark scroll-smooth">
       <body className={`${font.variable} font-sans bg-[#080d18] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200 antialiased`}>
@@ -34,6 +40,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </main>
         <Footer />
         <ScrollToTop />
+        <PopupOverlay 
+          imageUrl={settings?.popupImageUrl || null} 
+          link={settings?.popupLink || null}
+          active={settings?.popupActive || false}
+        />
       </body>
     </html>
   )
