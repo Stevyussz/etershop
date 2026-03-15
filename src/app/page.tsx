@@ -7,6 +7,7 @@ import {
   ShieldCheck, Zap, MessageCircle, Star, Users, Clock
 } from 'lucide-react'
 import { RamadhanSection } from '@/components/home/RamadhanSection'
+import { CountdownTimer } from '@/components/ui/CountdownTimer'
 
 export const revalidate = 60
 
@@ -131,6 +132,13 @@ export default async function Home() {
               <Users className="h-5 w-5" /> Komunitas Discord
             </Link>
           </div>
+
+          {/* ── Countdown Timer ── */}
+          {settings?.countdownEnd && (
+            <div className="mt-16">
+              <CountdownTimer targetDate={settings.countdownEnd} />
+            </div>
+          )}
 
           {/* Trust bar */}
           <div className="mt-16 flex flex-wrap items-center justify-center gap-6 md:gap-16 border-t border-white/5 pt-10">

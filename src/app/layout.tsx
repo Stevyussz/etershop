@@ -6,6 +6,7 @@ import { Footer } from '@/components/layout/Footer'
 import { ScrollToTop } from '@/components/ui/ScrollToTop'
 import { PromoBar } from '@/components/ui/PromoBar'
 import { PopupOverlay } from '@/components/ui/PopupOverlay'
+import { LiveSalesToast } from '@/components/ui/LiveSalesToast'
 import prisma from '@/lib/prisma'
 
 const font = Plus_Jakarta_Sans({
@@ -95,8 +96,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           link={settings?.popupLink || null}
           active={settings?.popupActive || false}
         />
+        <LiveSalesToast active={settings?.showLiveSales || false} />
       </body>
     </html>
   )
 }
-

@@ -42,6 +42,8 @@ model SiteSettings {
   popupActive    Boolean  @default(false)
   
   ramadhanMode   Boolean  @default(false)
+  countdownEnd   DateTime?
+  showLiveSales  Boolean  @default(true)
 
   updatedAt      DateTime @updatedAt
 }

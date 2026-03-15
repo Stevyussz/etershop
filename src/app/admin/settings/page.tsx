@@ -1,11 +1,16 @@
 import prisma from '@/lib/prisma'
 import { updateSiteSettings } from '../actions'
-import { Settings, Image as ImageIcon, Link as LinkIcon, Bell, Save, Moon } from 'lucide-react'
+import { Settings, Image as ImageIcon, Link as LinkIcon, Bell, Save, Moon, Zap, Clock } from 'lucide-react'
 
 export default async function SettingsPage() {
   const settings = await prisma.siteSettings.findUnique({
     where: { id: 'main' }
   })
+
+  // Format date for input datetime-local
+  const countdownFormatted = settings?.countdownEnd 
+    ? new Date(settings.countdownEnd.getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16)
+    : ''
 
   return (
     <div className="max-w-4xl">
@@ -23,8 +28,8 @@ export default async function SettingsPage() {
         {/* Banner Popup Section */}
         <section className="bg-[#080d18] border border-cyan-500/10 rounded-2xl p-6 md:p-8">
           <div className="flex items-center gap-3 mb-6">
-            <Bell className="h-5 w-5 text-cyan-400" />
-            <h2 className="text-xl font-bold text-white">Popup Pengumuman</h2>
+            <Zap className="h-5 w-5 text-yellow-400" />
+            <h2 className="text-xl font-bold text-white">Fitur Konversi & Promo</h2>
           </div>
 
           <form action={updateSiteSettings} className="space-y-6">
@@ -45,7 +50,22 @@ export default async function SettingsPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                  <LinkIcon className="h-4 w-4" /> Link Tujuan (Opsional)
+                  <Clock className="h-4 w-4" /> Countdown Flash Sale (Waktu Selesai)
+                </label>
+                <input
+                  type="datetime-local"
+                  name="countdownEnd"
+                  defaultValue={countdownFormatted}
+                  className="w-full bg-[#0c1526] border border-cyan-500/20 rounded-xl h-11 px-4 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
+                />
+                <p className="text-xs text-slate-500">Kosongkan jika tidak ada flash sale aktif.</p>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+               <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  <LinkIcon className="h-4 w-4" /> Link Tujuan Popup
                 </label>
                 <input
                   type="url"
@@ -58,30 +78,43 @@ export default async function SettingsPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-4 p-4 bg-cyan-500/5 rounded-xl border border-cyan-500/10">
-              <div className="flex items-center gap-3">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="flex items-center gap-3 p-4 bg-cyan-500/5 rounded-xl border border-cyan-500/10">
                 <input
                   type="checkbox"
                   name="popupActive"
                   id="popupActive"
                   defaultChecked={settings?.popupActive}
-                  className="h-5 w-5 rounded border-cyan-500/30 bg-[#0c1526] text-cyan-500 focus:ring-cyan-500/30 transition-all cursor-pointer"
+                  className="h-5 w-5 rounded border-cyan-500/30 bg-[#0c1526] text-cyan-500 focus:ring-cyan-500/30 cursor-pointer"
                 />
-                <label htmlFor="popupActive" className="text-sm font-bold text-white cursor-pointer select-none">
-                  Aktifkan Popup Pengumuman
+                <label htmlFor="popupActive" className="text-xs font-bold text-white cursor-pointer select-none">
+                  Popup Aktif
                 </label>
               </div>
 
-              <div className="pt-3 border-t border-white/5 flex items-center gap-3">
+              <div className="flex items-center gap-3 p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
                 <input
                   type="checkbox"
                   name="ramadhanMode"
                   id="ramadhanMode"
                   defaultChecked={settings?.ramadhanMode}
-                  className="h-5 w-5 rounded border-emerald-500/30 bg-[#0c1526] text-emerald-500 focus:ring-emerald-500/30 transition-all cursor-pointer"
+                  className="h-5 w-5 rounded border-emerald-500/30 bg-[#0c1526] text-emerald-500 focus:ring-emerald-500/30 cursor-pointer"
                 />
-                <label htmlFor="ramadhanMode" className="text-sm font-bold text-emerald-400 flex items-center gap-2 cursor-pointer select-none">
-                  <Moon className="h-4 w-4" /> Aktifkan Event Ramadhan (Tema Gold/Moon)
+                <label htmlFor="ramadhanMode" className="text-xs font-bold text-emerald-400 flex items-center gap-1 cursor-pointer select-none">
+                  <Moon className="h-3 w-3" /> Ramadhan Mode
+                </label>
+              </div>
+
+              <div className="flex items-center gap-3 p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/10">
+                <input
+                  type="checkbox"
+                  name="showLiveSales"
+                  id="showLiveSales"
+                  defaultChecked={settings?.showLiveSales}
+                  className="h-5 w-5 rounded border-indigo-500/30 bg-[#0c1526] text-indigo-500 focus:ring-indigo-500/30 cursor-pointer"
+                />
+                <label htmlFor="showLiveSales" className="text-xs font-bold text-indigo-400 cursor-pointer select-none">
+                  Live Sales Toast
                 </label>
               </div>
             </div>
