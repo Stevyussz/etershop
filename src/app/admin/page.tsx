@@ -15,8 +15,7 @@
 import prisma from "@/lib/prisma";
 import { getDigiflazzBalance } from "@/lib/digiflazz";
 import { formatRupiah } from "@/lib/utils";
-import dynamic from "next/dynamic";
-const MiniBarChart = dynamic(() => import("./MiniBarChart"), { ssr: false });
+import MiniBarChart from "./MiniBarChart";
 import {
   DollarSign, TrendingUp, CheckCircle2, Clock,
   Wallet, Receipt, RefreshCcw, Package, AlertTriangle, BarChart2
