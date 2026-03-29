@@ -4,9 +4,17 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ShoppingCart, CheckCircle2 } from 'lucide-react'
 
-const names = ['Andi', 'Budi', 'Chandra', 'Dika', 'Eko', 'Fajar', 'Gani', 'Hadi', 'Irfan', 'Joko', 'Kevin', 'Lutfi', 'Mamat', 'Novan', 'Oki', 'Putra']
+const names = ['Andi', 'Budi', 'Chandra', 'Dika', 'Eko', 'Fajar', 'Gani', 'Hadi', 'Irfan', 'Joko', 'Kevin', 'Lutfi', 'Mamat', 'Novan', 'Oki', 'Putra', 'hariya', 'ezkrepz', 'mancaaw', 'rogersumatra', 'fajarsatbuy', 'ElGatot']
 const products = [
   'Hosting Minecraft Pro',
+  'Website Server',
+  'Website Games',
+  'Website Store',
+  'Website Komunitas',
+  'Website Server Minecraft',
+  'Paket Website Full Stack',
+  'Paket Website Premium',
+  'Paket Website Custom',
   'Skin Minecraft Custom',
   'Logo Server Minecraft',
   'Website Starter Paket',

@@ -1,12 +1,7 @@
 import type { Metadata } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
-import { Navbar } from '@/components/layout/Navbar'
-import { Footer } from '@/components/layout/Footer'
-import { ScrollToTop } from '@/components/ui/ScrollToTop'
-import { PromoBar } from '@/components/ui/PromoBar'
-import { PopupOverlay } from '@/components/ui/PopupOverlay'
-import { LiveSalesToast } from '@/components/ui/LiveSalesToast'
+import ConditionalLayout from '@/components/layout/ConditionalLayout'
 import prisma from '@/lib/prisma'
 
 const font = Plus_Jakarta_Sans({
@@ -84,19 +79,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="id" className="dark scroll-smooth">
       <body className={`${font.variable} font-sans bg-[#080d18] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200 antialiased`}>
-        <PromoBar ramadhanMode={settings?.ramadhanMode} />
-        <Navbar />
-        <main className="flex-1">
-          {children}
-        </main>
-        <Footer />
-        <ScrollToTop />
-        <PopupOverlay 
-          imageUrl={settings?.popupImageUrl || null} 
-          link={settings?.popupLink || null}
-          active={settings?.popupActive || false}
-        />
-        <LiveSalesToast active={settings?.showLiveSales || false} />
+         <ConditionalLayout settings={settings}>
+            {children}
+         </ConditionalLayout>
       </body>
     </html>
   )

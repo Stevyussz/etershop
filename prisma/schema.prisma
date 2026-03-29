@@ -3,13 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 model Category {
-  id        String    @id @default(cuid())
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   slug      String    @unique
   products  Product[]
@@ -18,7 +17,7 @@ model Category {
 }
 
 model Product {
-  id            String   @id @default(cuid())
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
   title         String
   description   String
   price         Float
@@ -28,7 +27,7 @@ model Product {
   isActive      Boolean  @default(true)
   stock         Int      @default(-1)
   
-  categoryId  String
+  categoryId  String   @db.ObjectId
   category    Category @relation(fields: [categoryId], references: [id])
 
   createdAt   DateTime @default(now())
@@ -36,7 +35,7 @@ model Product {
 }
 
 model SiteSettings {
-  id             String   @id @default("main")
+  id             String   @id @map("_id") @default("main")
   popupImageUrl  String?
   popupLink      String?
   popupActive    Boolean  @default(false)
@@ -46,4 +45,36 @@ model SiteSettings {
   showLiveSales  Boolean  @default(true)
 
   updatedAt      DateTime @updatedAt
+}
+
+model TopupProduct {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  sku           String   @unique
+  brand         String   
+  name          String   
+  price         Float    
+  originalPrice Float    @default(0)
+  category      String   @default("Games")
+  type          String   @default("Umum")
+  isActive      Boolean  @default(true)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model TopupTransaction {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId     String   @unique 
+  gameId      String
+  zoneId      String?
+  sku         String
+  productName String
+  price       Float
+  cost        Float?   @default(0) 
+  digiflazzNote String?  
+  status      String   @default("PENDING") 
+  snapToken   String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

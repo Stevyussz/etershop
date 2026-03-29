@@ -1,145 +1,206 @@
-import prisma from '@/lib/prisma'
-import { updateSiteSettings } from '../actions'
-import { Settings, Image as ImageIcon, Link as LinkIcon, Bell, Save, Moon, Zap, Clock } from 'lucide-react'
+/**
+ * @file src/app/admin/settings/page.tsx
+ * @description Admin Site Settings Page.
+ *
+ * Allows management of global storefront features:
+ * - Banner/popup promo configuration
+ * - Flash sale countdown timer
+ * - Live Sales notification toggle
+ * - Ramadhan mode toggle
+ *
+ * Uses a standard HTML form with the updateSiteSettings Server Action.
+ * Includes a client-side confirmation toast after save.
+ */
+
+import prisma from "@/lib/prisma";
+import { updateSiteSettings } from "../actions";
+import {
+  Settings, Image as ImageIcon, LinkIcon, Bell, Save,
+  Moon, Zap, Clock, Info, Globe, ToggleRight, Palette
+} from "lucide-react";
+
+export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const settings = await prisma.siteSettings.findUnique({
-    where: { id: 'main' }
-  })
+  const settings = await prisma.siteSettings.findUnique({ where: { id: "main" } });
 
-  // Format date for input datetime-local
-  const countdownFormatted = settings?.countdownEnd 
-    ? new Date(settings.countdownEnd.getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16)
-    : ''
+  // Format datetime-local value accounting for timezone offset
+  const countdownFormatted = settings?.countdownEnd
+    ? new Date(settings.countdownEnd.getTime() - new Date().getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16)
+    : "";
 
   return (
-    <div className="max-w-4xl">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="h-10 w-10 rounded-xl bg-slate-500/10 flex items-center justify-center">
-          <Settings className="h-6 w-6 text-slate-400" />
+    <div className="max-w-5xl">
+      {/* ── Page Header ── */}
+      <div className="flex items-center gap-4 mb-8">
+        <div className="h-12 w-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.2)]">
+          <Settings className="h-6 w-6 text-blue-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-white">Pengaturan Situs</h1>
-          <p className="text-slate-400 text-sm">Kelola fitur global dan pengumuman website.</p>
+          <h1 className="text-2xl font-black text-white">Pengaturan Situs</h1>
+          <p className="text-slate-400 text-sm">Kelola fitur global, promo, dan tampilan storefront.</p>
         </div>
       </div>
 
-      <div className="grid gap-8">
-        {/* Banner Popup Section */}
-        <section className="bg-[#080d18] border border-cyan-500/10 rounded-2xl p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <Zap className="h-5 w-5 text-yellow-400" />
-            <h2 className="text-xl font-bold text-white">Fitur Konversi & Promo</h2>
+      <form action={updateSiteSettings} className="space-y-6">
+        {/* ── SECTION 1: Popup Promo ── */}
+        <section className="bg-[#111823] border border-white/5 rounded-3xl p-6 md:p-8 shadow-xl">
+          <div className="flex items-center gap-3 mb-6 pb-5 border-b border-white/5">
+            <div className="w-9 h-9 rounded-xl bg-yellow-500/10 flex items-center justify-center">
+              <Zap className="h-5 w-5 text-yellow-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Popup Promo</h2>
+              <p className="text-xs text-slate-500">Tampilan banner iklan saat pengunjung membuka toko.</p>
+            </div>
+            {/* Current Status Indicator */}
+            <div className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${settings?.popupActive ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-white/5 border-white/5 text-slate-500"}`}>
+              <span className={`w-2 h-2 rounded-full ${settings?.popupActive ? "bg-emerald-500 animate-pulse" : "bg-slate-600"}`} />
+              {settings?.popupActive ? "Aktif" : "Nonaktif"}
+            </div>
           </div>
 
-          <form action={updateSiteSettings} className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                  <ImageIcon className="h-4 w-4" /> URL Gambar Popup
-                </label>
-                <input
-                  type="url"
-                  name="popupImageUrl"
-                  defaultValue={settings?.popupImageUrl || ''}
-                  placeholder="https://example.com/promo.jpg"
-                  className="w-full bg-[#0c1526] border border-cyan-500/20 rounded-xl h-11 px-4 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
-                />
-                <p className="text-xs text-slate-500">Gunakan URL gambar (Unsplash, Discord, atau host gambar lainnya).</p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                  <Clock className="h-4 w-4" /> Countdown Flash Sale (Waktu Selesai)
-                </label>
-                <input
-                  type="datetime-local"
-                  name="countdownEnd"
-                  defaultValue={countdownFormatted}
-                  className="w-full bg-[#0c1526] border border-cyan-500/20 rounded-xl h-11 px-4 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
-                />
-                <p className="text-xs text-slate-500">Kosongkan jika tidak ada flash sale aktif.</p>
-              </div>
+          <div className="grid gap-5 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                <ImageIcon className="h-4 w-4 text-slate-400" /> URL Gambar Popup
+              </label>
+              <input
+                type="url"
+                name="popupImageUrl"
+                defaultValue={settings?.popupImageUrl ?? ""}
+                placeholder="https://example.com/promo.jpg"
+                className="w-full bg-[#0a0f16] border border-white/10 rounded-xl h-11 px-4 text-white text-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+              />
+              <p className="text-xs text-slate-500">Gunakan link gambar langsung (CDN, Discord, Imgur).</p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                  <LinkIcon className="h-4 w-4" /> Link Tujuan Popup
-                </label>
-                <input
-                  type="url"
-                  name="popupLink"
-                  defaultValue={settings?.popupLink || ''}
-                  placeholder="https://wa.me/..."
-                  className="w-full bg-[#0c1526] border border-cyan-500/20 rounded-xl h-11 px-4 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
-                />
-                <p className="text-xs text-slate-500">Halaman yang dibuka saat gambar di-klik.</p>
-              </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                <LinkIcon className="h-4 w-4 text-slate-400" /> Link Tujuan Popup
+              </label>
+              <input
+                type="url"
+                name="popupLink"
+                defaultValue={settings?.popupLink ?? ""}
+                placeholder="https://wa.me/6281234567890"
+                className="w-full bg-[#0a0f16] border border-white/10 rounded-xl h-11 px-4 text-white text-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+              />
+              <p className="text-xs text-slate-500">Halaman yang dibuka saat gambar diklik.</p>
             </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="flex items-center gap-3 p-4 bg-cyan-500/5 rounded-xl border border-cyan-500/10">
-                <input
-                  type="checkbox"
-                  name="popupActive"
-                  id="popupActive"
-                  defaultChecked={settings?.popupActive}
-                  className="h-5 w-5 rounded border-cyan-500/30 bg-[#0c1526] text-cyan-500 focus:ring-cyan-500/30 cursor-pointer"
-                />
-                <label htmlFor="popupActive" className="text-xs font-bold text-white cursor-pointer select-none">
-                  Popup Aktif
-                </label>
-              </div>
-
-              <div className="flex items-center gap-3 p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
-                <input
-                  type="checkbox"
-                  name="ramadhanMode"
-                  id="ramadhanMode"
-                  defaultChecked={settings?.ramadhanMode}
-                  className="h-5 w-5 rounded border-emerald-500/30 bg-[#0c1526] text-emerald-500 focus:ring-emerald-500/30 cursor-pointer"
-                />
-                <label htmlFor="ramadhanMode" className="text-xs font-bold text-emerald-400 flex items-center gap-1 cursor-pointer select-none">
-                  <Moon className="h-3 w-3" /> Ramadhan Mode
-                </label>
-              </div>
-
-              <div className="flex items-center gap-3 p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/10">
-                <input
-                  type="checkbox"
-                  name="showLiveSales"
-                  id="showLiveSales"
-                  defaultChecked={settings?.showLiveSales}
-                  className="h-5 w-5 rounded border-indigo-500/30 bg-[#0c1526] text-indigo-500 focus:ring-indigo-500/30 cursor-pointer"
-                />
-                <label htmlFor="showLiveSales" className="text-xs font-bold text-indigo-400 cursor-pointer select-none">
-                  Live Sales Toast
-                </label>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-cyan-500/10 flex justify-end">
-              <button
-                type="submit"
-                className="inline-flex items-center gap-2 h-12 px-8 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-white font-bold hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all active:scale-95"
-              >
-                <Save className="h-5 w-5" /> Simpan Perubahan
-              </button>
-            </div>
-          </form>
+          </div>
         </section>
 
-        {/* Info card */}
-        <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-6">
-          <h3 className="text-emerald-400 font-bold mb-2 flex items-center gap-2 text-sm">
-            <Save className="h-4 w-4" /> Tips:
-          </h3>
+        {/* ── SECTION 2: Flash Sale Countdown ── */}
+        <section className="bg-[#111823] border border-white/5 rounded-3xl p-6 md:p-8 shadow-xl">
+          <div className="flex items-center gap-3 mb-6 pb-5 border-b border-white/5">
+            <div className="w-9 h-9 rounded-xl bg-orange-500/10 flex items-center justify-center">
+              <Clock className="h-5 w-5 text-orange-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Flash Sale Countdown</h2>
+              <p className="text-xs text-slate-500">Timer hitung mundur yang tampil di storefront.</p>
+            </div>
+          </div>
+
+          <div className="max-w-sm space-y-2">
+            <label className="text-sm font-semibold text-slate-300">Waktu Selesai Flash Sale</label>
+            <input
+              type="datetime-local"
+              name="countdownEnd"
+              defaultValue={countdownFormatted}
+              className="w-full bg-[#0a0f16] border border-white/10 rounded-xl h-11 px-4 text-white text-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+            />
+            <p className="text-xs text-slate-500">
+              Kosongkan untuk menyembunyikan timer. Timer otomatis menghilang saat waktu habis.
+            </p>
+          </div>
+        </section>
+
+        {/* ── SECTION 3: Feature Toggles ── */}
+        <section className="bg-[#111823] border border-white/5 rounded-3xl p-6 md:p-8 shadow-xl">
+          <div className="flex items-center gap-3 mb-6 pb-5 border-b border-white/5">
+            <div className="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center">
+              <ToggleRight className="h-5 w-5 text-purple-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Fitur &amp; Tampilan</h2>
+              <p className="text-xs text-slate-500">Aktifkan atau nonaktifkan fitur storefront secara real-time.</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            {/* Popup Active */}
+            <label className="flex items-center gap-4 p-4 bg-[#0a0f16] border border-white/5 rounded-2xl cursor-pointer hover:border-emerald-500/30 transition-all group has-[:checked]:border-emerald-500/30 has-[:checked]:bg-emerald-500/5">
+              <input
+                type="checkbox"
+                name="popupActive"
+                id="popupActive"
+                defaultChecked={settings?.popupActive ?? false}
+                className="h-5 w-5 rounded accent-emerald-500 cursor-pointer shrink-0"
+              />
+              <div>
+                <span className="text-sm font-bold text-white block">Popup Aktif</span>
+                <span className="text-xs text-slate-500">Tampilkan banner promo</span>
+              </div>
+            </label>
+
+            {/* Ramadhan Mode */}
+            <label className="flex items-center gap-4 p-4 bg-[#0a0f16] border border-white/5 rounded-2xl cursor-pointer hover:border-emerald-500/30 transition-all group has-[:checked]:border-emerald-500/30 has-[:checked]:bg-emerald-500/5">
+              <input
+                type="checkbox"
+                name="ramadhanMode"
+                id="ramadhanMode"
+                defaultChecked={settings?.ramadhanMode ?? false}
+                className="h-5 w-5 rounded accent-emerald-500 cursor-pointer shrink-0"
+              />
+              <div>
+                <span className="text-sm font-bold text-white flex items-center gap-1.5 mb-0.5">
+                  <Moon className="h-3.5 w-3.5 text-emerald-400" /> Ramadhan Mode
+                </span>
+                <span className="text-xs text-slate-500">Dekorasi islami</span>
+              </div>
+            </label>
+
+            {/* Live Sales Toast */}
+            <label className="flex items-center gap-4 p-4 bg-[#0a0f16] border border-white/5 rounded-2xl cursor-pointer hover:border-blue-500/30 transition-all group has-[:checked]:border-blue-500/30 has-[:checked]:bg-blue-500/5">
+              <input
+                type="checkbox"
+                name="showLiveSales"
+                id="showLiveSales"
+                defaultChecked={settings?.showLiveSales ?? false}
+                className="h-5 w-5 rounded accent-blue-500 cursor-pointer shrink-0"
+              />
+              <div>
+                <span className="text-sm font-bold text-white flex items-center gap-1.5 mb-0.5">
+                  <Bell className="h-3.5 w-3.5 text-blue-400" /> Live Sales Toast
+                </span>
+                <span className="text-xs text-slate-500">Notifikasi pembelian simulasi</span>
+              </div>
+            </label>
+          </div>
+        </section>
+
+        {/* ── Info Card ── */}
+        <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-5 flex gap-3">
+          <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
           <p className="text-slate-400 text-sm leading-relaxed">
-            Popup akan muncul satu kali setiap sesi kunjungan pengunjung di Beranda atau Shop untuk memberikan info promo terbaru tanpa mengganggu kenyamanan.
+            <strong className="text-white">Tips:</strong> Popup promo tampil sekali per sesi pengunjung. Live Sales Toast menampilkan notifikasi simulasi pembelian (bukan data riil) untuk meningkatkan konversi.
           </p>
         </div>
-      </div>
+
+        {/* ── Save Button ── */}
+        <div className="flex justify-end pt-2">
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 h-12 px-8 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold shadow-lg hover:shadow-[0_10px_30px_rgba(37,99,235,0.4)] hover:-translate-y-0.5 transition-all active:scale-95 text-sm"
+          >
+            <Save className="h-5 w-5" /> Simpan Semua Perubahan
+          </button>
+        </div>
+      </form>
     </div>
-  )
+  );
 }

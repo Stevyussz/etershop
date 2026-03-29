@@ -1,78 +1,257 @@
-import prisma from '@/lib/prisma'
-import { Package, Tags, Activity, TrendingUp, ShoppingCart } from 'lucide-react'
-import Link from 'next/link'
+/**
+ * @file src/app/admin/page.tsx
+ * @description Admin Dashboard Overview Page (Server Component).
+ *
+ * Renders:
+ * - Real-time financial KPI cards
+ * - Digiflazz live balance + connection status
+ * - 7-day revenue mini chart (pure SVG, no extra dependencies)
+ * - Top selling products by revenue
+ * - Recent transactions table
+ *
+ * All data fetched in parallel with Promise.all for maximum performance.
+ */
 
-export const dynamic = 'force-dynamic'
+import prisma from "@/lib/prisma";
+import { getDigiflazzBalance } from "@/lib/digiflazz";
+import { formatRupiah } from "@/lib/utils";
+import dynamic from "next/dynamic";
+const MiniBarChart = dynamic(() => import("./MiniBarChart"), { ssr: false });
+import {
+  DollarSign, TrendingUp, CheckCircle2, Clock,
+  Wallet, Receipt, RefreshCcw, Package, AlertTriangle, BarChart2
+} from "lucide-react";
 
-export default async function AdminDashboard() {
-  const [productCount, categoryCount, featuredCount] = await Promise.all([
-    prisma.product.count(),
-    prisma.category.count(),
-    prisma.product.count({ where: { isFeatured: true } }),
-  ])
+// ─────────────────────────────────────────────
+// PAGE
+// ─────────────────────────────────────────────
 
-  const recentProducts = await prisma.product.findMany({
-    include: { category: true },
-    orderBy: { createdAt: 'desc' },
-    take: 5,
-  })
+export default async function AdminOverview() {
+  // Build date range for last 7 days
+  const today = new Date();
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 6);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
 
-  const stats = [
-    { label: 'Total Produk', value: productCount, icon: Package, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', href: '/admin/products' },
-    { label: 'Produk Unggulan', value: featuredCount, icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', href: '/admin/products' },
-    { label: 'Total Kategori', value: categoryCount, icon: Tags, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/20', href: '/admin/categories' },
-    { label: 'Status Server', value: 'Online', icon: Activity, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20', href: '#' },
-  ]
+  const [statsSuccess, statsAll, totalOrders, pendingOrders, activeProducts, recentOrders, digiflazzBalance, last7DaysTx, topProducts] =
+    await Promise.all([
+      // Revenue from successful transactions
+      prisma.topupTransaction.aggregate({
+        _sum: { price: true, cost: true },
+        where: { status: "SUCCESS" },
+      }),
+      // Count of all statuses
+      prisma.topupTransaction.groupBy({
+        by: ["status"],
+        _count: { id: true },
+      }),
+      prisma.topupTransaction.count({ where: { status: "SUCCESS" } }),
+      prisma.topupTransaction.count({ where: { status: { in: ["PENDING", "PAID"] } } }),
+      prisma.topupProduct.count({ where: { isActive: true } }),
+      // Last 6 transactions for the table
+      prisma.topupTransaction.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
+      getDigiflazzBalance(),
+      // Last 7 days of successful transactions for the chart
+      prisma.topupTransaction.findMany({
+        where: { status: "SUCCESS", createdAt: { gte: sevenDaysAgo } },
+        select: { price: true, createdAt: true },
+      }),
+      // Top 5 products by revenue
+      prisma.topupTransaction.groupBy({
+        by: ["productName"],
+        where: { status: "SUCCESS" },
+        _sum: { price: true },
+        _count: { id: true },
+        orderBy: { _sum: { price: "desc" } },
+        take: 5,
+      }),
+    ]);
+
+  const totalRevenue = statsSuccess._sum?.price ?? 0;
+  const totalCost = statsSuccess._sum?.cost ?? 0;
+  const netProfit = totalRevenue - totalCost;
+  const failedCount = statsAll.find((s) => s.status === "FAILED")?._count?.id ?? 0;
+  const isDigiflazzOnline = digiflazzBalance !== null;
+
+  // Build 7-day chart data
+  const DAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+  const chartData = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sevenDaysAgo);
+    d.setDate(sevenDaysAgo.getDate() + i);
+    const dayRevenue = last7DaysTx
+      .filter((t) => {
+        const td = new Date(t.createdAt);
+        return td.toDateString() === d.toDateString();
+      })
+      .reduce((sum, t) => sum + t.price, 0);
+    return { label: DAYS[d.getDay()], value: dayRevenue };
+  });
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-white mb-1 tracking-tight">Dashboard</h1>
-        <p className="text-slate-400">Selamat datang kembali di panel admin EterShop.</p>
+    <div className="space-y-8">
+      {/* ── Top bar: Title + Digiflazz Status ── */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-black text-white">Ikhtisar</h2>
+          <p className="text-slate-500 font-medium">Monitoring performa EterShop secara real-time.</p>
+        </div>
+        <div className="flex gap-3 flex-wrap">
+          {isDigiflazzOnline && (
+            <div className="bg-[#111823] border border-white/5 rounded-2xl p-4 flex items-center gap-4 shadow-xl">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                <Wallet className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-0.5">Saldo Digiflazz</p>
+                <p className="text-lg font-black text-white">{formatRupiah(digiflazzBalance!)}</p>
+              </div>
+            </div>
+          )}
+          <div className="bg-[#111823] border border-white/5 rounded-2xl px-4 py-3 flex items-center gap-2.5 shadow-lg">
+            <div className={`w-2.5 h-2.5 rounded-full ${isDigiflazzOnline ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-rose-500"}`} />
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+              {isDigiflazzOnline ? "Digiflazz Online" : "Digiflazz Offline"}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-10">
-        {stats.map((s) => (
-          <Link key={s.label} href={s.href} className={`rounded-2xl border ${s.border} ${s.bg} p-5 hover:brightness-110 transition-all`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{s.label}</span>
-              <s.icon className={`h-5 w-5 ${s.color}`} />
+      {/* ── KPI Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Total Pendapatan", value: formatRupiah(totalRevenue), icon: DollarSign, color: "blue", sub: "Omzet kotor sukses" },
+          { label: "Estimasi Laba Bersih", value: formatRupiah(netProfit), icon: TrendingUp, color: "emerald", sub: "Pendapatan − Modal" },
+          { label: "Order Berhasil", value: totalOrders.toLocaleString("id-ID"), icon: CheckCircle2, color: "blue", sub: "Transaksi riil" },
+          { label: "Perlu Perhatian", value: (pendingOrders + failedCount).toLocaleString("id-ID"), icon: AlertTriangle, color: "yellow", sub: `${pendingOrders} pending, ${failedCount} gagal` },
+        ].map(({ label, value, icon: Icon, color, sub }) => (
+          <div key={label} className={`bg-[#111823] border border-white/5 rounded-2xl p-5 shadow-xl relative overflow-hidden group`}>
+            <div className={`absolute top-3 right-3 w-9 h-9 rounded-xl bg-${color}-500/10 flex items-center justify-center`}>
+              <Icon className={`w-5 h-5 text-${color}-400`} />
             </div>
-            <div className={`text-3xl font-extrabold ${s.color}`}>{s.value}</div>
-          </Link>
+            <p className="text-slate-400 text-xs font-bold mb-1 pr-10">{label}</p>
+            <h3 className="text-xl font-black text-white leading-tight">{value}</h3>
+            <p className="text-[10px] text-slate-600 mt-1">{sub}</p>
+          </div>
         ))}
       </div>
 
-      {/* Recent Products */}
-      <div className="rounded-2xl border border-cyan-500/10 bg-[#0c1526] overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-cyan-500/10">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5 text-cyan-400" />
-            <h2 className="font-bold text-white">Produk Terbaru</h2>
+      {/* ── Chart + Top Products ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* 7-Day Revenue Chart */}
+        <div className="lg:col-span-3 bg-[#111823] border border-white/5 rounded-3xl p-6 shadow-xl">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <BarChart2 className="w-4 h-4 text-emerald-400" /> Pendapatan 7 Hari
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">Hanya dari transaksi yang berhasil.</p>
+            </div>
+            <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+              +{formatRupiah(chartData.reduce((s, d) => s + d.value, 0))}
+            </span>
           </div>
-          <Link href="/admin/products" className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors">
-            Kelola semua →
-          </Link>
+          <MiniBarChart data={chartData} />
         </div>
-        <div className="divide-y divide-cyan-500/10">
-          {recentProducts.length === 0 ? (
-            <p className="text-center text-slate-400 py-10">Belum ada produk.</p>
+
+        {/* Top Products */}
+        <div className="lg:col-span-2 bg-[#111823] border border-white/5 rounded-3xl p-6 shadow-xl">
+          <h3 className="text-base font-bold text-white flex items-center gap-2 mb-4">
+            <Package className="w-4 h-4 text-blue-400" /> Produk Terlaris
+          </h3>
+          {topProducts.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-8">Belum ada data penjualan.</p>
           ) : (
-            recentProducts.map((p: any) => (
-              <div key={p.id} className="flex items-center justify-between px-6 py-4">
-                <div>
-                  <p className="font-semibold text-white text-sm">{p.title}</p>
-                  <p className="text-xs text-slate-400">{p.category.name}</p>
+            <div className="space-y-3">
+              {topProducts.map((p, i) => (
+                <div key={p.productName} className="flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-lg bg-white/5 text-slate-400 text-xs font-black flex items-center justify-center shrink-0">
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-bold truncate leading-tight">{p.productName}</p>
+                    <p className="text-xs text-slate-500">{p._count.id}× terjual</p>
+                  </div>
+                  <span className="text-emerald-400 font-bold text-xs shrink-0">
+                    {formatRupiah(p._sum?.price ?? 0)}
+                  </span>
                 </div>
-                <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400 text-sm">
-                  Rp {p.price.toLocaleString('id-ID')}
-                </span>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       </div>
+
+      {/* ── Recent Transactions ── */}
+      <div className="bg-[#111823] border border-white/5 rounded-3xl p-6 md:p-8 shadow-2xl">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Receipt className="w-5 h-5 text-blue-500" /> Transaksi Terbaru
+          </h3>
+          <a
+            href="/admin/transactions"
+            className="text-blue-400 hover:text-white text-sm font-bold px-3 py-1.5 bg-blue-500/10 rounded-lg transition-colors border border-blue-500/20 hover:border-blue-500/50"
+          >
+            Lihat Semua →
+          </a>
+        </div>
+
+        <div className="overflow-x-auto -mx-2">
+          <table className="w-full text-left border-collapse min-w-[600px]">
+            <thead>
+              <tr className="border-b border-white/5 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th className="py-3 px-3">Order ID</th>
+                <th className="py-3 px-3">Item</th>
+                <th className="py-3 px-3 text-right">Harga</th>
+                <th className="py-3 px-3 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm divide-y divide-white/[0.03]">
+              {recentOrders.map((order) => (
+                <tr key={order.id} className="hover:bg-white/[0.03] transition-colors group">
+                  <td className="py-3.5 px-3 text-slate-400 font-mono text-xs">{order.orderId}</td>
+                  <td className="py-3.5 px-3">
+                    <span className="text-white font-bold block leading-tight group-hover:text-blue-400 transition-colors text-sm">
+                      {order.productName}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {order.gameId}{order.zoneId ? ` (${order.zoneId})` : ""}
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-3 text-right font-bold text-white">
+                    {formatRupiah(order.price)}
+                  </td>
+                  <td className="py-3.5 px-3 text-right">
+                    {order.status === "SUCCESS" ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-md">
+                        <CheckCircle2 className="w-3 h-3" /> Sukses
+                      </span>
+                    ) : order.status === "PENDING" ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 rounded-md">
+                        <Clock className="w-3 h-3" /> Pending
+                      </span>
+                    ) : order.status === "PAID" ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-md">
+                        <RefreshCcw className="w-3 h-3 animate-spin" /> Proses
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-1 rounded-md">
+                        <AlertTriangle className="w-3 h-3" /> Gagal
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {recentOrders.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-10 text-center text-slate-500">
+                    Belum ada transaksi.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
-  )
+  );
 }

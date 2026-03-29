@@ -3,59 +3,64 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-  await prisma.product.deleteMany()
-  await prisma.category.deleteMany()
+  // Clearing existing top-up products to ensure clean seed
+  await prisma.topupProduct.deleteMany()
 
-  const serverCategory = await prisma.category.create({
-    data: {
-      name: 'Server & Hosting',
-      slug: 'server-hosting',
+  // Define dummy products
+  const products = [
+    {
+      sku: 'ML5',
+      brand: 'MOBILE LEGENDS',
+      name: '5 Diamonds',
+      price: 2000,
+      isActive: true,
     },
-  })
-
-  const designCategory = await prisma.category.create({
-    data: {
-      name: 'Design & Art',
-      slug: 'design-art',
+    {
+      sku: 'ML86',
+      brand: 'MOBILE LEGENDS',
+      name: '86 Diamonds',
+      price: 25000,
+      isActive: true,
     },
-  })
+    {
+      sku: 'FF5',
+      brand: 'FREE FIRE',
+      name: '5 Diamonds',
+      price: 1500,
+      isActive: true,
+    },
+    {
+      sku: 'FF200',
+      brand: 'FREE FIRE',
+      name: '200 Diamonds',
+      price: 35000,
+      isActive: true,
+    },
+    {
+      sku: 'VALORANT300',
+      brand: 'VALORANT',
+      name: '300 Points',
+      price: 50000,
+      isActive: true,
+    },
+    {
+      sku: 'VALORANT600',
+      brand: 'VALORANT',
+      name: '600 Points',
+      price: 95000,
+      isActive: true,
+    }
+  ]
 
-  await prisma.product.createMany({
-    data: [
-      {
-        title: 'Minecraft Server Performance',
-        description: 'Super fast AMD Ryzen servers for your Minecraft community.',
-        price: 50000,
-        categoryId: serverCategory.id,
-        isFeatured: true,
-        imageUrl: '/logo.jpg',
-      },
-      {
-        title: 'Minecraft Realms Plus',
-        description: 'Access to Realms Plus, affordable and fast delivery.',
-        price: 35000,
-        categoryId: serverCategory.id,
-        imageUrl: 'https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      },
-      {
-        title: 'Epic Custom Minecraft Skin',
-        description: 'Get a custom Minecraft skin designed by professionals.',
-        price: 20000,
-        categoryId: designCategory.id,
-        isFeatured: true,
-        imageUrl: 'https://images.unsplash.com/photo-1623934199716-e421c7fb8322?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      },
-      {
-        title: 'YouTube Vector Logo & Banner',
-        description: 'High tier logo and banner for your channel.',
-        price: 75000,
-        categoryId: designCategory.id,
-        imageUrl: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      },
-    ],
-  })
-
-  console.log('Seeded successfully')
+  console.log('Inserting dummy products...')
+  for (const product of products) {
+    await prisma.topupProduct.upsert({
+      where: { sku: product.sku },
+      update: {},
+      create: product,
+    })
+  }
+  console.log('Seeded top-up products successfully.')
 }
 
 main()
