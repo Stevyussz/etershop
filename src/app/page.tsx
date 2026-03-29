@@ -12,15 +12,20 @@ import { CountdownTimer } from '@/components/ui/CountdownTimer'
 export const revalidate = 60
 
 export default async function Home() {
-  const settings = await prisma.siteSettings.findUnique({
-    where: { id: 'main' }
-  })
-
-  const featuredProducts = await prisma.product.findMany({
-    where: { isFeatured: true },
-    include: { category: true },
-    take: 6,
-  })
+  let settings = null;
+  let featuredProducts: any[] = [];
+  try {
+    settings = await prisma.siteSettings.findUnique({
+      where: { id: 'main' }
+    });
+    featuredProducts = await prisma.product.findMany({
+      where: { isFeatured: true },
+      include: { category: true },
+      take: 6,
+    });
+  } catch {
+    // DB unavailable during static prerender — safe to ignore
+  }
 
   const stats = [
     { icon: ShieldCheck, label: 'Garansi & Aman', color: 'text-emerald-400' },

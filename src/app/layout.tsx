@@ -72,9 +72,16 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const settings = await prisma.siteSettings.findUnique({
-    where: { id: 'main' }
-  })
+  // Graceful fallback: if DATABASE_URL is not set (e.g. during Vercel build prerender),
+  // return null settings so the layout still renders without crashing.
+  let settings = null;
+  try {
+    settings = await prisma.siteSettings.findUnique({
+      where: { id: 'main' }
+    });
+  } catch {
+    // DB unavailable during static prerender — safe to ignore, defaults will be used
+  }
 
   return (
     <html lang="id" className="dark scroll-smooth">
