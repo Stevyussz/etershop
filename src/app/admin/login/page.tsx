@@ -12,12 +12,12 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, LogIn, ShieldAlert, Eye, EyeOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function AdminLoginPage() {
+function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -153,5 +153,14 @@ export default function AdminLoginPage() {
         </p>
       </motion.div>
     </div>
+  );
+}
+
+/** Wrap with Suspense — required because useSearchParams() is used inside LoginForm */
+export default function AdminLoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

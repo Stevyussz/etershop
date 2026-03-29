@@ -16,6 +16,8 @@ import prisma from "@/lib/prisma";
 import { getDigiflazzBalance } from "@/lib/digiflazz";
 import { formatRupiah } from "@/lib/utils";
 import MiniBarChart from "./MiniBarChart";
+
+export const dynamic = "force-dynamic"; // Always render at request time (hits DB + Digiflazz API)
 import {
   DollarSign, TrendingUp, CheckCircle2, Clock,
   Wallet, Receipt, RefreshCcw, Package, AlertTriangle, BarChart2

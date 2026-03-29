@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { Search, Package, Clock, ShieldCheck, AlertCircle, RefreshCcw, Home, CheckCircle2, ChevronRight, Info, Copy, CheckCheck } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 
-export default function TrackOrderPage() {
+function TrackOrderContent() {
   const searchParams = useSearchParams();
   const [orderId, setOrderId] = useState(searchParams.get("orderId") ?? "");
   const [isLoading, setIsLoading] = useState(false);
@@ -281,5 +281,13 @@ export default function TrackOrderPage() {
          </div>
       </div>
     </div>
+  );
+}
+
+export default function TrackOrderPage() {
+  return (
+    <Suspense>
+      <TrackOrderContent />
+    </Suspense>
   );
 }
