@@ -206,3 +206,72 @@ export async function updateSiteSettings(formData: FormData): Promise<void> {
   revalidatePath("/admin");
   revalidatePath("/topup");
 }
+
+// ─────────────────────────────────────────────
+// EMERGENCY TOPUP ACTIONS
+// ─────────────────────────────────────────────
+
+/**
+ * Manually retries a stuck topup transaction via Digiflazz.
+ * Used by admins when Midtrans webhook succeeds but Digiflazz fails/pending.
+ *
+ * @param orderId - The TRX order ID to retry.
+ */
+export async function manualProcessOrder(orderId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const transaction = await prisma.topupTransaction.findUnique({
+      where: { orderId },
+    });
+
+    if (!transaction) return { success: false, message: "Transaksi tidak ditemukan." };
+    if (transaction.status === "SUCCESS") return { success: false, message: "Transaksi ini sudah berhasil, tidak perlu diproses ulang." };
+    if (transaction.status !== "PAID" && transaction.status !== "PENDING") {
+      return { success: false, message: `Tidak dapat memproses transaksi dengan status ${transaction.status}.` };
+    }
+
+    const { executeDigiflazzTopup } = await import("@/lib/digiflazz");
+
+    const customerNo = transaction.zoneId
+      ? `${transaction.gameId}${transaction.zoneId}`
+      : transaction.gameId;
+
+    let finalStatus: "SUCCESS" | "FAILED" | "PAID" = "FAILED";
+    let digiflazzNote = "No response from Digiflazz";
+
+    try {
+      const result = await executeDigiflazzTopup(
+        transaction.sku,
+        customerNo,
+        transaction.orderId
+      );
+
+      const digiStatus = result?.data?.status;
+
+      if (digiStatus === "Sukses") {
+        finalStatus = "SUCCESS";
+        digiflazzNote = result.data?.sn ? `SN: ${result.data.sn}` : result.data?.message || "Manual retry berhasil";
+      } else if (digiStatus === "Pending") {
+        finalStatus = "PAID";
+        digiflazzNote = result.data?.message || "Masih diproses Digiflazz (Pending)";
+      } else {
+        finalStatus = "FAILED";
+        digiflazzNote = result?.data?.message || `Topup gagal (status: ${digiStatus})`;
+      }
+    } catch (digiErr: any) {
+      finalStatus = "FAILED";
+      digiflazzNote = `Manual retry Digiflazz error: ${digiErr?.message}`;
+    }
+
+    await prisma.topupTransaction.update({
+      where: { orderId },
+      data: { status: finalStatus, digiflazzNote },
+    });
+
+    revalidatePath("/admin/transactions");
+    return { success: true, message: `Status diperbarui menjadi: ${finalStatus}. Note: ${digiflazzNote}` };
+
+  } catch (error: any) {
+    console.error("[ManualProcess] Failed:", error);
+    return { success: false, message: error.message };
+  }
+}

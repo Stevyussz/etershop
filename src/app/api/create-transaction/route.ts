@@ -74,6 +74,10 @@ export async function POST(req: NextRequest) {
 
     const authString = Buffer.from(`${serverKey}:`).toString("base64");
 
+    // CRITICAL: notification_url must be hardcoded so Midtrans always calls our webhook,
+    // even if the Midtrans dashboard notification URL is not configured.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://etershop.yusrilastaghina.my.id";
+
     const midtransPayload = {
       transaction_details: {
         order_id: orderId,
@@ -88,6 +92,10 @@ export async function POST(req: NextRequest) {
           category: product.brand,
         },
       ],
+      callbacks: {
+        finish: `${appUrl}/topup/success?order_id=${orderId}`,
+      },
+      notification_url: `${appUrl}/api/midtrans-webhook`,
     };
 
     const midtransRes = await fetch(midtransBaseUrl, {

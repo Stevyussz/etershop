@@ -116,6 +116,20 @@ export async function POST(req: NextRequest) {
             : resultData?.message || "Topup berhasil";
           console.log(`[Webhook] ✅ Order ${orderId} → SUCCESS. SN: ${resultData?.sn}`);
 
+          // Increment voucher usedCount if one was applied to this transaction
+          if (transaction.voucherId) {
+            try {
+              await prisma.voucher.update({
+                where: { id: transaction.voucherId },
+                data: { usedCount: { increment: 1 } },
+              });
+              console.log(`[Webhook] 🎟️  Voucher ${transaction.voucherId} usedCount incremented.`);
+            } catch (vErr) {
+              // Non-fatal — log but don't block the delivery confirmation
+              console.error(`[Webhook] Failed to increment voucher count:`, vErr);
+            }
+          }
+
         } else if (digiStatus === "Pending") {
           // Digiflazz still processing — leave as PAID (NOT success yet)
           // We keep the status as PAID and save the note.

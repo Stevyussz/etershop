@@ -12,12 +12,13 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import {
   Receipt, Search, FileDown, CheckCircle2, Clock,
-  RefreshCcw, AlertTriangle, TrendingUp, X, DollarSign
+  RefreshCcw, AlertTriangle, TrendingUp, X, DollarSign, Loader2, Wrench
 } from "lucide-react";
 import { formatRupiah, formatDate } from "@/lib/utils";
+import { manualProcessOrder } from "../actions";
 
 type TransactionStatus = "ALL" | "SUCCESS" | "PENDING" | "PAID" | "FAILED";
 
@@ -106,6 +107,19 @@ function exportToCSV(transactions: Transaction[]) {
 export default function TransactionsClient({ transactions, stats }: Props) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TransactionStatus>("ALL");
+  const [isPending, startTransition] = useTransition();
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const handleManualProcess = (orderId: string) => {
+    if (!confirm(`Proses ulang transaksi ${orderId} secara manual ke Digiflazz? (Pastikan dana dari pelanggan sudah benar-benar masuk)`)) return;
+    
+    setProcessingId(orderId);
+    startTransition(async () => {
+      const res = await manualProcessOrder(orderId);
+      alert(res.message);
+      setProcessingId(null);
+    });
+  };
 
   /** Apply search + status filter, memoized for performance */
   const filtered = useMemo(() => {
@@ -221,6 +235,7 @@ export default function TransactionsClient({ transactions, stats }: Props) {
                 <th className="py-4 px-5 text-right">Harga Jual</th>
                 <th className="py-4 px-5 text-right">Laba</th>
                 <th className="py-4 px-5 text-right w-[130px]">Status</th>
+                <th className="py-4 px-5 text-right w-[110px]">Aksi</th>
               </tr>
             </thead>
             <tbody className="text-sm divide-y divide-white/[0.03]">
@@ -280,6 +295,22 @@ export default function TransactionsClient({ transactions, stats }: Props) {
                     </td>
                     <td className="py-3.5 px-5 text-right">
                       <StatusBadge status={order.status} />
+                    </td>
+                    <td className="py-3.5 px-5 text-right">
+                      {(order.status === "PAID" || order.status === "PENDING" || order.status === "FAILED") && (
+                        <button
+                          onClick={() => handleManualProcess(order.orderId)}
+                          disabled={isPending && processingId === order.orderId}
+                          title="Proses Manual (Rescue)"
+                          className="p-1.5 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/20 hover:bg-orange-500/20 transition-all disabled:opacity-50 inline-flex items-center justify-center shrink-0"
+                        >
+                          {isPending && processingId === order.orderId ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Wrench className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
