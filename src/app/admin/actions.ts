@@ -250,6 +250,18 @@ export async function manualProcessOrder(orderId: string): Promise<{ success: bo
       if (digiStatus === "Sukses") {
         finalStatus = "SUCCESS";
         digiflazzNote = result.data?.sn ? `SN: ${result.data.sn}` : result.data?.message || "Manual retry berhasil";
+        
+        // INCREMENT VOUCHER USAGE (CRITICAL)
+        if (transaction.voucherId) {
+          try {
+            await prisma.voucher.update({
+              where: { id: transaction.voucherId },
+              data: { usedCount: { increment: 1 } },
+            });
+          } catch (vErr) {
+            console.error(`[ManualProcess] Failed to increment voucher count on order ${orderId}:`, vErr);
+          }
+        }
       } else if (digiStatus === "Pending") {
         finalStatus = "PAID";
         digiflazzNote = result.data?.message || "Masih diproses Digiflazz (Pending)";
