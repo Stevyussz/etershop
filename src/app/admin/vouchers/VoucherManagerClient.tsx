@@ -134,6 +134,7 @@ export default function VoucherManagerClient({ initialVouchers }: { initialVouch
                 <th className="py-5 px-6 text-slate-400 font-bold text-xs uppercase tracking-wider">Kode</th>
                 <th className="py-5 px-6 text-slate-400 font-bold text-xs uppercase tracking-wider">Potongan</th>
                 <th className="py-5 px-6 text-slate-400 font-bold text-xs uppercase tracking-wider">Minimal Beli</th>
+                <th className="py-5 px-6 text-slate-400 font-bold text-xs uppercase tracking-wider">Kadaluarsa</th>
                 <th className="py-5 px-6 text-slate-400 font-bold text-xs uppercase tracking-wider">Pemakaian</th>
                 <th className="py-5 px-6 text-slate-400 font-bold text-xs uppercase tracking-wider">Status</th>
                 <th className="py-5 px-6 text-slate-400 font-bold text-xs uppercase tracking-wider text-right">Aksi</th>
@@ -162,6 +163,9 @@ export default function VoucherManagerClient({ initialVouchers }: { initialVouch
                       {v.discountType === "PERCENT" ? `${v.discountValue}%` : `Rp ${v.discountValue.toLocaleString()}`}
                     </td>
                     <td className="py-4 px-6 text-slate-400">Rp {v.minPurchase.toLocaleString()}</td>
+                    <td className="py-4 px-6 text-slate-400">
+                      {v.expiryDate ? new Date(v.expiryDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : "Tanpa Batas"}
+                    </td>
                     <td className="py-4 px-6">
                       <div className="flex flex-col gap-1">
                         <span className="text-white font-medium">{v.usedCount} {v.usageLimit === -1 ? "" : `/ ${v.usageLimit}`}</span>
@@ -278,7 +282,39 @@ export default function VoucherManagerClient({ initialVouchers }: { initialVouch
                       type="number"
                       value={editingVoucher?.usageLimit}
                       onChange={(e) => setEditingVoucher({...editingVoucher, usageLimit: Number(e.target.value)})}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white focus:outline-none"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white focus:outline-none focus:border-fuchsia-500/50 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <AnimatePresence mode="popLayout">
+                    {editingVoucher?.discountType === "PERCENT" && (
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 flex items-center justify-between">
+                          Maksimal Diskon
+                          <span className="text-slate-600 font-normal lowercase">(Opsional)</span>
+                        </label>
+                        <input 
+                          type="number"
+                          placeholder="Tanpa batas"
+                          value={editingVoucher?.maxDiscount || ""}
+                          onChange={(e) => setEditingVoucher({...editingVoucher, maxDiscount: e.target.value ? Number(e.target.value) : null})}
+                          className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <div className={editingVoucher?.discountType !== "PERCENT" ? "col-span-2" : ""}>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 flex items-center justify-between">
+                      Batas Kadaluarsa
+                      <span className="text-slate-600 font-normal lowercase">(Opsional)</span>
+                    </label>
+                    <input 
+                      type="datetime-local"
+                      value={editingVoucher?.expiryDate ? new Date(editingVoucher.expiryDate).toISOString().slice(0, 16) : ""}
+                      onChange={(e) => setEditingVoucher({...editingVoucher, expiryDate: e.target.value})}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white focus:outline-none focus:border-fuchsia-500/50 transition-colors [&::-webkit-calendar-picker-indicator]:invert"
                     />
                   </div>
                 </div>
