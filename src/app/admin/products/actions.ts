@@ -13,22 +13,16 @@ import { revalidatePath } from "next/cache";
 import { getDigiflazzPriceList, type DigiflazzProduct } from "@/lib/digiflazz";
 import { calculateSellingPrice } from "@/lib/utils";
 
-/** Categories from Digiflazz that are considered "Games" for this platform. */
-const GAME_CATEGORIES = ["Games", "Voucher Game", "Voucher"] as const;
+/** Keywords used to identify game-related products from Digiflazz. */
+const GAME_KEYWORDS = ["game", "voucher", "mobile", "pc", "topup", "hiburan"] as const;
 
 /**
  * The chunk size for batched database upserts.
- * Kept at 200 to respect Vercel's serverless function memory limits on the Hobby plan.
- * For Pro/Business plans, this can safely be increased to 500.
  */
 const DB_UPSERT_CHUNK_SIZE = 200;
 
 /**
  * Transforms a raw Digiflazz product object into the shape needed by our database.
- * This is the canonical mapping between Digiflazz's schema and ours.
- *
- * @param p - Raw product data from the Digiflazz API.
- * @returns An object ready to be used in a Prisma `upsert` call.
  */
 function mapDigiflazzProductForDB(p: DigiflazzProduct) {
   const originalPrice = p.price;
@@ -62,23 +56,40 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct) {
  * Filters the raw Digiflazz product list to only include active game products.
  *
  * A product is included if:
- * 1. Its category is one of the defined GAME_CATEGORIES.
+ * 1. Its category or type contains any of the GAME_KEYWORDS (case-insensitive).
  * 2. Its seller_product_status is true (Digiflazz has stock).
- *
- * Note: We intentionally do NOT filter on `buyer_product_status` because
- * Digiflazz requires manual activation per-product on their dashboard,
- * which is an extra step that resellers often skip. The seller status
- * is the reliable source of truth for product availability.
  *
  * @param products - The full raw product list from Digiflazz.
  * @returns Filtered array of active game products.
  */
 function filterGameProducts(products: DigiflazzProduct[]): DigiflazzProduct[] {
-  return products.filter(
-    (p) =>
-      (GAME_CATEGORIES as readonly string[]).includes(p.category) &&
-      p.seller_product_status === true
-  );
+  console.log(`[Admin] Filtering ${products.length} products from Digiflazz...`);
+  
+  const filtered = products.filter((p) => {
+    const category = p.category.toLowerCase();
+    const type = p.type.toLowerCase();
+    const name = p.product_name.toLowerCase();
+
+    // Check if category or type contains "game" or "voucher"
+    const isGameRelated = 
+      GAME_KEYWORDS.some(kw => category.includes(kw) || type.includes(kw)) ||
+      (category === "hiburan"); // Hiburan is sometimes used for game vouchers
+
+    return isGameRelated && p.seller_product_status === true;
+  });
+
+  console.log(`[Admin] Found ${filtered.length} matching game products.`);
+  if (filtered.length > 0) {
+    // Log unique categories found for debugging
+    const categories = Array.from(new Set(filtered.map(p => p.category)));
+    console.log(`[Admin] Categories found:`, categories.join(", "));
+    
+    // Log unique brands found
+    const brands = Array.from(new Set(filtered.map(p => p.brand)));
+    console.log(`[Admin] Brands found (${brands.length}):`, brands.slice(0, 10).join(", "), brands.length > 10 ? "..." : "");
+  }
+
+  return filtered;
 }
 
 /**
@@ -124,12 +135,12 @@ export async function runDigiflazzSync(): Promise<{ success: boolean; message: s
 
     // Step 4: Deactivate products that no longer exist in the Digiflazz response
     // This handles products that Digiflazz has removed or that we no longer sell.
+    // Step 4: Deactivate products that were not in this sync batch
     const activeSkus = gameProducts.map((p) => p.buyer_sku_code);
     const deactivatedResult = await prisma.topupProduct.updateMany({
       where: {
-        category: { in: [...GAME_CATEGORIES] },
         sku: { notIn: activeSkus },
-        isActive: true, // Only update ones that were previously active
+        isActive: true,
       },
       data: { isActive: false },
     });
