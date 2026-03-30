@@ -11,16 +11,17 @@ const font = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://etershop.vercel.app'), // Replace with actual domain if different
+  metadataBase: new URL('https://etershop.vercel.app'),
   title: {
     default: 'EterShop | Toko Digital Pelajar & Gamer Terpercaya',
     template: '%s | EterShop'
   },
-  description: 'EterShop adalah toko digital high-tier: hosting server Minecraft, skin custom, desain logo, dan pembuatan website profesional. Aman, cepat, dan terpercaya sejak rilis. Harga mulai Rp 10rb!',
+  description: 'EterShop adalah toko digital high-tier: Topup Games murah, hosting server Minecraft, skin custom, desain logo, dan pembuatan website profesional. Aman, cepat, dan terpercaya 24 Jam.',
   keywords: [
-    'etershop', 'toko digital', 'minecraft hosting indonesia', 'jasa desain logo', 
+    'etershop', 'toko digital', 'topup game murah', 'kios gamers', 'diamond ff murah', 
+    'diamond ml murah', 'uc pubg murah', 'jasa desain logo', 
     'jasa pembuatan website', 'skin minecraft custom', 'hosting murah', 'digital shop gamer',
-    'etershop minecraft', 'jasa website ramadhan'
+    'etershop minecraft', 'jasa website ramadhan 2026'
   ],
   authors: [{ name: 'EterShop Team' }],
   creator: 'EterShop',
@@ -31,8 +32,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: 'EterShop — Empowering Your Digital World',
-    description: 'Solusi kebutuhan digital Anda: Hosting, Desain, dan Website dengan kualitas terbaik dan harga pelajar.',
+    title: 'EterShop — Toko Digital Pelajar & Gamer Terpercaya',
+    description: 'Topup Games, Hosting, Desain, dan Website dengan kualitas terbaik dan harga pelajar. Proses instan 24 jam.',
     url: 'https://etershop.vercel.app',
     siteName: 'EterShop',
     images: [
@@ -40,7 +41,7 @@ export const metadata: Metadata = {
         url: '/logo.jpg',
         width: 1200,
         height: 630,
-        alt: 'EterShop Logo Branding',
+        alt: 'EterShop Branding',
       },
     ],
     locale: 'id_ID',
@@ -49,14 +50,15 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'EterShop | Toko Digital Pelajar & Gamer',
-    description: 'Hosting Minecraft, Desain Logo, & Jasa Website. Kualitas premium harga minimum.',
+    description: 'Topup Game Termurah, Hosting Minecraft, Desain Logo, & Jasa Website. Kualitas premium harga minimum.',
     images: ['/logo.jpg'],
   },
   icons: {
     icon: '/logo.jpg',
+    shortcut: '/logo.jpg',
     apple: '/logo.jpg',
   },
-  manifest: '/manifest.json', // We will create this next
+  manifest: '/manifest.json',
   robots: {
     index: true,
     follow: true,
@@ -67,6 +69,9 @@ export const metadata: Metadata = {
       'max-image-preview': 'large',
       'max-snippet': -1,
     },
+  },
+  alternates: {
+    canonical: 'https://etershop.vercel.app',
   },
   category: 'technology',
 }

@@ -63,8 +63,33 @@ export default async function GameTopupPage(props: { params: Promise<{ game: str
 
   if (!matchedBrand || products.length === 0) return notFound();
 
+  // SEO: Structured Data (JSON-LD) for Rich Results
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: `Topup ${matchedBrand}`,
+    image: gameConfig?.imageUrl || 'https://etershop.vercel.app/logo.jpg',
+    description: `Beli Diamond/Voucher ${matchedBrand} termurah dan tercepat hanya di EterShop. Proses otomatis 24 jam.`,
+    brand: {
+      '@type': 'Brand',
+      name: matchedBrand,
+    },
+    offers: {
+      '@type': 'AggregateOffer',
+      priceCurrency: 'IDR',
+      lowPrice: products[0]?.price || 0,
+      highPrice: products[products.length - 1]?.price || 0,
+      offerCount: products.length,
+      availability: 'https://schema.org/InStock',
+    },
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0f16] text-slate-200 pb-20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <main className="container mx-auto px-0 py-0 max-w-6xl relative z-10 w-full overflow-x-hidden">
         <CheckoutClient products={products} brand={matchedBrand} config={gameConfig} />
       </main>
