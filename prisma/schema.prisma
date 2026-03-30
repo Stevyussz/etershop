@@ -49,6 +49,9 @@ model SiteSettings {
   globalMarkupPercent Float    @default(5.0)      // e.g. 5.0 for 5%
   globalMarkupFixed   Float    @default(2000)   // e.g. 2000 for Rp 2.000
 
+  // Nickname Validator Settings (Cek ID)
+  gameValidatorUrl    String   @default("https://api.vany.my.id/api/game/")
+
   updatedAt      DateTime @updatedAt
 }
 

@@ -19,6 +19,7 @@ interface Settings {
   globalMarkupType: string;
   globalMarkupPercent: number;
   globalMarkupFixed: number;
+  gameValidatorUrl?: string;
 }
 
 export default function PriceSettingsClient({ initialSettings }: { initialSettings: Settings | null }) {
@@ -144,6 +145,39 @@ export default function PriceSettingsClient({ initialSettings }: { initialSettin
             >
               {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} Simpan Pengaturan
             </button>
+          </div>
+
+          {/* VALIDATOR SETTINGS */}
+          <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-8 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-black text-white">Nickname Validator (Cek ID)</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                URL API gratis yang digunakan untuk mengecek nickname pemain sebelum transaksi. 
+                Ganti jika layanan yang sekarang sedang gangguan.
+              </p>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-600 ml-1">Validator Endpoint URL</label>
+                <input 
+                  type="text"
+                  value={settings.gameValidatorUrl || ""}
+                  onChange={(e) => setSettings({ ...settings, gameValidatorUrl: e.target.value })}
+                  placeholder="https://api.vany.my.id/api/game/"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm font-medium text-white focus:outline-none focus:border-blue-500/50"
+                />
+              </div>
+              <div className="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-3">
+                <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Format harus diakhiri `/` (misalnya: `.../api/game/`). Sistem akan otomatis menambahkan nama game di belakangnya.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

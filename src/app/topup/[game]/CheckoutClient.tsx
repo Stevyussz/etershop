@@ -20,6 +20,7 @@ import { formatRupiah, slugifyBrand } from "@/lib/utils";
 // @ts-ignore
 import type { TopupProduct, GameConfig } from "@prisma/client";
 import { validateVoucher } from "@/app/admin/vouchers/voucher-actions";
+import { validateNickname } from "./validator-actions";
 
 // ─────────────────────────────────────────────
 // TYPES & CONSTANTS
@@ -94,6 +95,9 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
 
   const [gameId, setGameId] = useState("");
   const [zoneId, setZoneId] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [isCheckingNick, setIsCheckingNick] = useState(false);
+  const [nickError, setNickError] = useState("");
   const [selectedSku, setSelectedSku] = useState<string>("");
   const [selectedPayment, setSelectedPayment] = useState<string>("qris");
   const [isLoading, setIsLoading] = useState(false);
@@ -103,6 +107,29 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
   const [isVoucherApplied, setIsVoucherApplied] = useState(false);
   const [showHowTo, setShowHowTo] = useState(false);
   const [toastMsg, setToastMsg] = useState<{name: string, item: string} | null>(null);
+
+  /** Validates the nickname using the server action */
+  const handleCheckNickname = async () => {
+    if (!gameId) return;
+    if (needsZoneId && !zoneId) return;
+
+    setIsCheckingNick(true);
+    setNickError("");
+    setNickname("");
+
+    try {
+      const res = await validateNickname(brand, gameId, zoneId);
+      if (res.success) {
+        setNickname(res.nickname);
+      } else {
+        setNickError(res.message || "Gagal cek nickname.");
+      }
+    } catch (e) {
+      setNickError("Layanan pengecekan gangguan.");
+    } finally {
+      setIsCheckingNick(false);
+    }
+  };
 
   /** The currently selected product object, derived from selectedSku */
   const selectedProduct = useMemo(
@@ -303,23 +330,74 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">User ID</label>
-                    <input 
-                      type="text" value={gameId} onChange={(e) => setGameId(e.target.value)}
-                      placeholder="Masukkan User ID"
-                      className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-4 px-6 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
-                    />
+                    <div className="relative">
+                      <input 
+                        type="text" value={gameId} onChange={(e) => setGameId(e.target.value)}
+                        placeholder="Masukkan User ID"
+                        className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-4 px-6 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                      />
+                      {!needsZoneId && gameId.length > 4 && !nickname && (
+                        <button 
+                          onClick={handleCheckNickname}
+                          disabled={isCheckingNick}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-500/20"
+                        >
+                          {isCheckingNick ? <Loader2 className="w-3 h-3 animate-spin"/> : "CEK"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {needsZoneId && (
                     <div className="space-y-2">
                       <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">Zone ID</label>
-                      <input 
-                        type="text" value={zoneId} onChange={(e) => setZoneId(e.target.value)}
-                        placeholder="Maukkan Zone ID"
-                        className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-4 px-6 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
-                      />
+                      <div className="relative">
+                        <input 
+                          type="text" value={zoneId} onChange={(e) => setZoneId(e.target.value)}
+                          placeholder="Masukkan Zone ID"
+                          className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-4 px-6 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                        />
+                        {gameId.length > 4 && zoneId.length >= 4 && !nickname && (
+                          <button 
+                            onClick={handleCheckNickname}
+                            disabled={isCheckingNick}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-500/20"
+                          >
+                            {isCheckingNick ? <Loader2 className="w-3 h-3 animate-spin"/> : "CEK"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                </div>
+
+               <AnimatePresence>
+                 {(nickname || nickError) && (
+                   <motion.div 
+                     initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                     className="mt-6"
+                   >
+                     {nickname ? (
+                       <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+                          <div className="flex items-center gap-3">
+                             <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                             </div>
+                             <div>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Username Ditemukan</div>
+                                <div className="text-xl font-black text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">{nickname}</div>
+                             </div>
+                          </div>
+                          <div className="hidden sm:block text-[10px] font-bold text-emerald-500/60 mr-2">Verified ✅</div>
+                       </div>
+                     ) : (
+                       <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-3">
+                          <X className="w-5 h-5 text-rose-500" />
+                          <span className="text-sm font-bold text-rose-400">{nickError}</span>
+                       </div>
+                     )}
+                   </motion.div>
+                 )}
+               </AnimatePresence>
              </motion.div>
 
              {/* STEP 2: SELECT NOMINAL */}
