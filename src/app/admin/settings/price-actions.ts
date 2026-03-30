@@ -24,10 +24,13 @@ export async function getPriceSettings() {
 /** Updates global pricing settings */
 export async function updatePriceSettings(data: any) {
   try {
+    // Destructure to remove MongoDB-specific fields that shouldn't be sent in the update payload
+    const { id, createdAt, updatedAt, ...updateData } = data;
+
     const settings = await prisma.siteSettings.upsert({
       where: { id: "main" },
-      update: data,
-      create: { id: "main", ...data }
+      update: updateData,
+      create: { id: "main", ...updateData }
     });
     
     revalidatePath("/admin/settings");

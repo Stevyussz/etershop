@@ -23,10 +23,17 @@ interface Settings {
 }
 
 export default function PriceSettingsClient({ initialSettings }: { initialSettings: Settings | null }) {
-  const [settings, setSettings] = useState<Settings>(initialSettings || {
+  // Clean initialSettings from MongoDB technical fields before setting state
+  const cleanInitial = initialSettings ? (() => {
+    const { id, createdAt, updatedAt, ...others } = initialSettings as any;
+    return others as Settings;
+  })() : null;
+
+  const [settings, setSettings] = useState<Settings>(cleanInitial || {
     globalMarkupType: "TIERED",
     globalMarkupPercent: 5,
-    globalMarkupFixed: 2000
+    globalMarkupFixed: 2000,
+    gameValidatorUrl: "https://api.vany.my.id/api/game/"
   });
   const [isPending, startTransition] = useTransition();
   const [isSyncPending, startSyncTransition] = useTransition();
@@ -35,11 +42,15 @@ export default function PriceSettingsClient({ initialSettings }: { initialSettin
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      const res = await updatePriceSettings(settings);
-      if (res.success) {
-        setToast({ msg: "Pengaturan harga berhasil disimpan!", type: "success" });
-      } else {
-        setToast({ msg: "Gagal menyimpan pengaturan.", type: "error" });
+      try {
+        const res = await updatePriceSettings(settings);
+        if (res.success) {
+          setToast({ msg: "Pengaturan harga berhasil disimpan!", type: "success" });
+        } else {
+          setToast({ msg: `Gagal: ${res.message || "Simpan pengaturan gagal."}`, type: "error" });
+        }
+      } catch (err: any) {
+        setToast({ msg: `Error: ${err.message || "Gagal simpan."}`, type: "error" });
       }
       setTimeout(() => setToast(null), 3000);
     });

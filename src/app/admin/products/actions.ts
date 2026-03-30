@@ -143,32 +143,42 @@ export async function toggleProductStatus(id: string, currentStatus: boolean) {
  */
 export async function runDigiflazzSync(): Promise<{ success: boolean; message: string }> {
   try {
+    console.log("[Admin Sync] Starting full Digiflazz synchronization...");
+    
     // Step 0: Fetch global pricing settings
-    const settings = await prisma.siteSettings.findUnique({ where: { id: "main" } });
+    const settings = await prisma.siteSettings.findUnique({ where: { id: "main" } }) as any;
+    console.log(`[Admin Sync] Using pricing strategy: ${settings?.globalMarkupType || "TIERED"}`);
 
     const allProducts = await getDigiflazzPriceList();
-    const gameProducts = filterGameProducts(allProducts);
+    if (!allProducts || allProducts.length === 0) {
+       throw new Error("Gagal mengambil data dari Digiflazz (Data Kosong).");
+    }
 
+    const gameProducts = filterGameProducts(allProducts);
     if (gameProducts.length === 0) {
       return {
         success: false,
-        message: "Tidak ada produk game yang ditemukan. Filter terlalu ketat atau data API kosong.",
+        message: "Tidak ada produk game yang ditemukan. Cek filter pencarian Anda.",
       };
     }
 
-    const upsertOperations = gameProducts.map((p) => {
-      const mapped = mapDigiflazzProductForDB(p, settings);
-      return prisma.topupProduct.upsert(mapped);
-    });
-
+    // Step 1: Batched Upserts to prevent memory issues
     let syncedCount = 0;
-    for (let i = 0; i < upsertOperations.length; i += DB_UPSERT_CHUNK_SIZE) {
-      const chunk = upsertOperations.slice(i, i + DB_UPSERT_CHUNK_SIZE);
-      await prisma.$transaction(chunk);
+    for (let i = 0; i < gameProducts.length; i += DB_UPSERT_CHUNK_SIZE) {
+      const chunk = gameProducts.slice(i, i + DB_UPSERT_CHUNK_SIZE);
+      const chunkOps = chunk.map((p) => {
+        const mapped = mapDigiflazzProductForDB(p, settings);
+        return prisma.topupProduct.upsert(mapped);
+      });
+      
+      console.log(`[Admin Sync] Syncing chunk ${Math.floor(i / DB_UPSERT_CHUNK_SIZE) + 1}...`);
+      await prisma.$transaction(chunkOps);
       syncedCount += chunk.length;
     }
 
-    // Deactivate products that no longer exist in the sync batch
+    // Step 2: Intelligent Deactivation
+    // Deactivate products that no longer exist in the total sync batch.
+    // For large catalogs, we do this in batches if needed.
     const activeSkus = gameProducts.map((p) => p.buyer_sku_code);
     const deactivatedResult = await prisma.topupProduct.updateMany({
       where: {
@@ -184,13 +194,13 @@ export async function runDigiflazzSync(): Promise<{ success: boolean; message: s
 
     return {
       success: true,
-      message: `✅ Berhasil! ${syncedCount} produk disinkronisasi dengan strategi ${settings?.globalMarkupType || "TIERED"}. ${deactivatedResult.count} produk lama dinonaktifkan secara sistem.`,
+      message: `✅ Berhasil! ${syncedCount} produk disinkronisasi. ${deactivatedResult.count} produk lama dinonaktifkan secara otomatis.`,
     };
   } catch (error: any) {
-    console.error("[Admin] Digiflazz sync failed:", error);
+    console.error("[Admin Sync] FATAL ERROR:", error);
     return {
       success: false,
-      message: `❌ Gagal sinkronisasi: ${error.message ?? "Terjadi kesalahan tidak diketahui."}`,
+      message: `❌ Gagal: ${error.message ?? "Terjadi kesalahan sistem saat sinkronisasi."}`,
     };
   }
 }
