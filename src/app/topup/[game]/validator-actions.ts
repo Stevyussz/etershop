@@ -1,6 +1,6 @@
 /**
  * @file src/app/topup/[game]/validator-actions.ts
- * @description Server Action to validate game nicknames via free community APIs.
+ * @description Robust multi-provider nickname validator for game IDs.
  */
 
 "use server";
@@ -16,44 +16,76 @@ const GAME_SLUG_MAP: Record<string, string> = {
 };
 
 /**
- * Validates a game nickname by calling a free community API.
+ * List of backup providers for the Cek ID feature.
+ * Most Indonesian dev community APIs follow the /api/game/[slug]?id=...&zone=... format.
+ */
+const FALLBACK_PROVIDERS = [
+  "https://api.vany.my.id/api/game/",
+  "https://api.henscorp.site/api/game/",
+  "https://api.caliph.dev/api/game/",
+];
+
+/**
+ * Validates a game nickname with automatic failover across multiple providers.
  */
 export async function validateNickname(brand: string, gameId: string, zoneId?: string) {
   try {
     const slug = GAME_SLUG_MAP[brand.trim().toUpperCase()];
     if (!slug) return { success: false, message: "Validasi tidak tersedia untuk game ini." };
 
-    // Fetch the validator URL from settings
-    const settings = await prisma.siteSettings.findUnique({ where: { id: "main" } });
-    const baseUrl = settings?.gameValidatorUrl || "https://api.vany.my.id/api/game/";
+    // Primary URL from settings
+    const settings = await prisma.siteSettings.findUnique({ where: { id: "main" } }) as any;
+    const primaryBaseUrl = settings?.gameValidatorUrl || FALLBACK_PROVIDERS[0];
 
-    // Build the query
-    let url = `${baseUrl}${slug}?id=${gameId}`;
-    if (zoneId && slug === "mobile-legends") {
-      url += `&zone=${zoneId}`;
+    // Combine primary and fallbacks, ensuring uniqueness
+    const providers = Array.from(new Set([primaryBaseUrl, ...FALLBACK_PROVIDERS]));
+
+    for (let i = 0; i < providers.length; i++) {
+      const baseUrl = providers[i];
+      let url = `${baseUrl}${slug}?id=${gameId}`;
+      if (zoneId && slug === "mobile-legends") {
+        url += `&zone=${zoneId}`;
+      }
+
+      console.log(`[Validator] Attempt ${i + 1} using: ${url}`);
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout per provider
+        
+        const res = await fetch(url, { 
+          method: "GET",
+          signal: controller.signal,
+          next: { revalidate: 30 } 
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) continue; // Try next provider
+
+        const data = await res.json();
+        
+        // Handle varied JSON structures from different community APIs
+        const nickname = 
+          data.nickname || 
+          data.name || 
+          data.username || 
+          data.name_user || 
+          data.data?.name || 
+          data.data?.nickname ||
+          data.result?.nickname;
+
+        if (nickname) {
+          return { success: true, nickname, providerIndex: i };
+        }
+      } catch (e) {
+        console.warn(`[Validator] Provider ${i + 1} failed:`, (e as Error).message);
+        continue; // Try next provider
+      }
     }
 
-    const res = await fetch(url, { 
-      method: "GET",
-      next: { revalidate: 60 } // Cache for 1 minute
-    });
-
-    if (!res.ok) {
-      return { success: false, message: "Layanan validasi sedang sibuk. Silakan lanjut transaksi." };
-    }
-
-    const data = await res.json();
-    
-    // Different community APIs return different payload structures (name, nickname, username)
-    const nickname = data.nickname || data.name || data.username || data.name_user || data.data?.name || data.data?.nickname;
-
-    if (!nickname) {
-      return { success: false, message: "ID tidak ditemukan. Pastikan data benar." };
-    }
-
-    return { success: true, nickname };
+    return { success: false, message: "Seluruh server validasi sedang sibuk atau ID salah. Silakan lanjut transaksi." };
   } catch (error) {
-    console.error("[Validator] Nickname check failed:", error);
-    return { success: false, message: "Gagal menghubungkan ke validator." };
+    console.error("[Validator] Nickname check critical failure:", error);
+    return { success: false, message: "Gagal menghubungkan ke sistem validasi." };
   }
 }

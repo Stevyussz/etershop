@@ -97,6 +97,7 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
   const [zoneId, setZoneId] = useState("");
   const [nickname, setNickname] = useState("");
   const [isCheckingNick, setIsCheckingNick] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [nickError, setNickError] = useState("");
   const [selectedSku, setSelectedSku] = useState<string>("");
   const [selectedPayment, setSelectedPayment] = useState<string>("qris");
@@ -108,26 +109,34 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
   const [showHowTo, setShowHowTo] = useState(false);
   const [toastMsg, setToastMsg] = useState<{name: string, item: string} | null>(null);
 
-  /** Validates the nickname using the server action */
+  /** Validates the nickname with automatic failover support */
   const handleCheckNickname = async () => {
-    if (!gameId) return;
-    if (needsZoneId && !zoneId) return;
+    if (!gameId || gameId.length < 5) return setNickError("Masukkan ID Game valid!");
+    if (needsZoneId && !zoneId) return setNickError("Masukkan Zone ID!");
 
     setIsCheckingNick(true);
+    setIsRetrying(false);
     setNickError("");
     setNickname("");
 
     try {
+      // Logic for fallback notification: 
+      // If the action takes more than 6s, it's likely on the second provider
+      const timeoutIndicator = setTimeout(() => setIsRetrying(true), 6000);
+
       const res = await validateNickname(brand, gameId, zoneId);
+      clearTimeout(timeoutIndicator);
+
       if (res.success) {
         setNickname(res.nickname);
       } else {
         setNickError(res.message || "Gagal cek nickname.");
       }
     } catch (e) {
-      setNickError("Layanan pengecekan gangguan.");
+      setNickError("Layanan pengecekan sedang gangguan.");
     } finally {
       setIsCheckingNick(false);
+      setIsRetrying(false);
     }
   };
 
@@ -342,7 +351,12 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
                           disabled={isCheckingNick}
                           className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-500/20"
                         >
-                          {isCheckingNick ? <Loader2 className="w-3 h-3 animate-spin"/> : "CEK"}
+                          {isCheckingNick ? (
+                            <div className="flex items-center gap-2">
+                               <Loader2 className="w-3 h-3 animate-spin"/>
+                               {isRetrying && <span>RETRYING...</span>}
+                            </div>
+                          ) : "CEK"}
                         </button>
                       )}
                     </div>
@@ -362,7 +376,12 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
                             disabled={isCheckingNick}
                             className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-500/20"
                           >
-                            {isCheckingNick ? <Loader2 className="w-3 h-3 animate-spin"/> : "CEK"}
+                            {isCheckingNick ? (
+                               <div className="flex items-center gap-2">
+                                  <Loader2 className="w-3 h-3 animate-spin"/>
+                                  {isRetrying && <span>RETRYING...</span>}
+                               </div>
+                            ) : "CEK"}
                           </button>
                         )}
                       </div>
@@ -371,6 +390,11 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
                </div>
 
                <AnimatePresence>
+                 {(isCheckingNick && isRetrying) && (
+                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[10px] text-blue-400 font-bold mt-3 ml-1 animate-pulse">
+                       ⏳ Server utama sedang sibuk, beralih ke server cadangan...
+                    </motion.p>
+                 )}
                  {(nickname || nickError) && (
                    <motion.div 
                      initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
