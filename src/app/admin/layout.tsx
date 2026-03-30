@@ -23,6 +23,8 @@ import {
   X,
   ExternalLink,
   Settings,
+  Ticket,
+  TrendingUp,
 } from "lucide-react";
 
 const NAV_LINKS = [
@@ -30,6 +32,8 @@ const NAV_LINKS = [
   { name: "Transaksi", href: "/admin/transactions", icon: Receipt },
   { name: "Branding Game", href: "/admin/games", icon: Gamepad2 },
   { name: "Daftar Produk", href: "/admin/products", icon: Settings },
+  { name: "Voucher Promo", href: "/admin/vouchers", icon: Ticket },
+  { name: "Manager Harga", href: "/admin/settings/prices", icon: TrendingUp },
   { name: "Pengaturan Situs", href: "/admin/settings", icon: Settings },
 ];
 

@@ -17,10 +17,12 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { generateOrderId } from "@/lib/utils";
 
+import { validateVoucher } from "@/app/admin/vouchers/voucher-actions";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { sku, gameId, zoneId } = body;
+    const { sku, gameId, zoneId, voucherCode } = body;
 
     // ── Input Validation ──────────────────────────────────
     if (!sku || typeof sku !== "string") {
@@ -45,9 +47,22 @@ export async function POST(req: NextRequest) {
     if (!product.isActive) {
       return NextResponse.json(
         { error: "Produk ini sedang tidak aktif. Silakan pilih produk lain." },
-        { status: 410 } // 410 Gone — product exists but is unavailable
+        { status: 410 }
       );
     }
+    
+    // ── Voucher Validation ────────────────────────────────
+    let discount = 0;
+    let voucherId = null;
+    if (voucherCode) {
+      const vRes = await validateVoucher(voucherCode, product.price);
+      if (vRes.success) {
+        discount = vRes.discount || 0;
+        voucherId = vRes.voucherId || null;
+      }
+    }
+
+    const finalPrice = Math.max(0, product.price - discount);
 
     // ── Payment Gateway (Midtrans) ────────────────────────
     const orderId = generateOrderId();
@@ -57,25 +72,22 @@ export async function POST(req: NextRequest) {
       ? "https://app.midtrans.com/snap/v1/transactions"
       : "https://app.sandbox.midtrans.com/snap/v1/transactions";
 
-    // Midtrans uses HTTP Basic Auth with the server key as the username
     const authString = Buffer.from(`${serverKey}:`).toString("base64");
 
     const midtransPayload = {
       transaction_details: {
         order_id: orderId,
-        gross_amount: product.price,
+        gross_amount: finalPrice,
       },
       item_details: [
         {
           id: product.sku,
-          price: product.price,
+          price: finalPrice,
           quantity: 1,
-          name: product.name.substring(0, 50), // Midtrans has a 50-char limit on item names
+          name: product.name.substring(0, 50),
           category: product.brand,
         },
       ],
-      // Optional: Pass customer details if you implement user auth later
-      // customer_details: { first_name: "...", email: "..." }
     };
 
     const midtransRes = await fetch(midtransBaseUrl, {
@@ -100,8 +112,6 @@ export async function POST(req: NextRequest) {
     const midtransData = await midtransRes.json();
 
     // ── Record Pending Transaction ───────────────────────
-    // We record this BEFORE confirming payment. If the user abandons the popup,
-    // this record stays as PENDING and will be cleaned up or expired later.
     await prisma.topupTransaction.create({
       data: {
         orderId,
@@ -109,8 +119,10 @@ export async function POST(req: NextRequest) {
         zoneId: zoneId || null,
         sku: product.sku,
         productName: product.name,
-        price: product.price,
-        cost: product.originalPrice || 0, // Lock in the cost price at time of purchase
+        price: finalPrice,
+        cost: product.originalPrice || 0,
+        discount,
+        voucherId,
         status: "PENDING",
         snapToken: midtransData.token,
       },

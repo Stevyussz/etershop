@@ -44,7 +44,28 @@ model SiteSettings {
   countdownEnd   DateTime?
   showLiveSales  Boolean  @default(true)
 
+  // Global Price Markup Settings
+  globalMarkupType    String   @default("TIERED") // PERCENT, FIXED, or TIERED (legacy)
+  globalMarkupPercent Float    @default(5.0)      // e.g. 5.0 for 5%
+  globalMarkupFixed   Float    @default(2000)   // e.g. 2000 for Rp 2.000
+
   updatedAt      DateTime @updatedAt
+}
+
+model Voucher {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  code          String   @unique
+  discountType  String   @default("FIXED") // PERCENT or FIXED
+  discountValue Float
+  minPurchase   Float    @default(0)
+  maxDiscount   Float?   // Cap for percentage discounts
+  usageLimit    Int      @default(-1) // -1 for unlimited
+  usedCount     Int      @default(0)
+  isActive      Boolean  @default(true)
+  expiryDate    DateTime?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model TopupProduct {
@@ -71,6 +92,8 @@ model TopupTransaction {
   productName String
   price       Float
   cost        Float?   @default(0) 
+  discount    Float    @default(0)
+  voucherId   String?  @db.ObjectId
   digiflazzNote String?  
   status      String   @default("PENDING") 
   snapToken   String?

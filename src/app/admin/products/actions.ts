@@ -26,11 +26,43 @@ const GAME_KEYWORDS = ["game", "voucher", "mobile", "pc", "topup", "hiburan"] as
 const DB_UPSERT_CHUNK_SIZE = 200;
 
 /**
+ * Calculates the dynamic selling price based on global admin settings.
+ */
+function calculateDynamicPrice(cost: number, settings: any) {
+  const type = settings?.globalMarkupType || "TIERED";
+  const percent = settings?.globalMarkupPercent || 5.0;
+  const fixed = settings?.globalMarkupFixed || 2000;
+  const ROUNDING_UNIT = 100;
+
+  let finalPrice = cost;
+
+  if (type === "PERCENT") {
+    const rawMargin = cost * (percent / 100);
+    const roundedMargin = Math.ceil(rawMargin / ROUNDING_UNIT) * ROUNDING_UNIT;
+    finalPrice = cost + roundedMargin;
+  } else if (type === "FIXED") {
+    finalPrice = cost + fixed;
+  } else {
+    // Legacy TIERED Logic
+    const MODAL_THRESHOLD = 50_000;
+    if (cost < MODAL_THRESHOLD) {
+      finalPrice = cost + 2000;
+    } else {
+      const rawMargin = cost * 0.05;
+      const roundedMargin = Math.ceil(rawMargin / ROUNDING_UNIT) * ROUNDING_UNIT;
+      finalPrice = cost + roundedMargin;
+    }
+  }
+
+  return finalPrice;
+}
+
+/**
  * Transforms a raw Digiflazz product object into the shape needed by our database.
  */
-function mapDigiflazzProductForDB(p: DigiflazzProduct) {
+function mapDigiflazzProductForDB(p: DigiflazzProduct, settings: any) {
   const originalPrice = p.price;
-  const sellingPrice = calculateSellingPrice(originalPrice);
+  const sellingPrice = calculateDynamicPrice(originalPrice, settings);
 
   return {
     where: { sku: p.buyer_sku_code },
@@ -111,6 +143,9 @@ export async function toggleProductStatus(id: string, currentStatus: boolean) {
  */
 export async function runDigiflazzSync(): Promise<{ success: boolean; message: string }> {
   try {
+    // Step 0: Fetch global pricing settings
+    const settings = await prisma.siteSettings.findUnique({ where: { id: "main" } });
+
     const allProducts = await getDigiflazzPriceList();
     const gameProducts = filterGameProducts(allProducts);
 
@@ -122,7 +157,7 @@ export async function runDigiflazzSync(): Promise<{ success: boolean; message: s
     }
 
     const upsertOperations = gameProducts.map((p) => {
-      const mapped = mapDigiflazzProductForDB(p);
+      const mapped = mapDigiflazzProductForDB(p, settings);
       return prisma.topupProduct.upsert(mapped);
     });
 
@@ -149,7 +184,7 @@ export async function runDigiflazzSync(): Promise<{ success: boolean; message: s
 
     return {
       success: true,
-      message: `✅ Berhasil! ${syncedCount} produk disinkronisasi. ${deactivatedResult.count} produk lama dinonaktifkan secara sistem.`,
+      message: `✅ Berhasil! ${syncedCount} produk disinkronisasi dengan strategi ${settings?.globalMarkupType || "TIERED"}. ${deactivatedResult.count} produk lama dinonaktifkan secara sistem.`,
     };
   } catch (error: any) {
     console.error("[Admin] Digiflazz sync failed:", error);

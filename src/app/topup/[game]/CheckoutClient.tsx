@@ -1,14 +1,6 @@
 /**
  * @file src/app/topup/[game]/CheckoutClient.tsx
  * @description Interactive checkout page for a specific game's topup packages.
- *
- * Renders:
- * - Hero banner with game art
- * - Nominal/package selector grid
- * - Player ID + Zone ID form
- * - Payment method selector (with real logos)
- * - Live sales social proof toast
- * - Midtrans Snap payment popup integration
  */
 
 "use client";
@@ -27,6 +19,7 @@ import {
 import { formatRupiah, slugifyBrand } from "@/lib/utils";
 // @ts-ignore
 import type { TopupProduct, GameConfig } from "@prisma/client";
+import { validateVoucher } from "@/app/admin/vouchers/voucher-actions";
 
 // ─────────────────────────────────────────────
 // TYPES & CONSTANTS
@@ -40,7 +33,6 @@ interface CheckoutClientProps {
 
 /**
  * Games that require a Zone/Server ID in addition to the player's Game ID.
- * Add to this set as more games requiring zone IDs are added.
  */
 const GAMES_REQUIRING_ZONE_ID = new Set([
   "MOBILE LEGENDS",
@@ -50,7 +42,6 @@ const GAMES_REQUIRING_ZONE_ID = new Set([
 
 /**
  * Curated hero/background metadata for known game brands.
- * Falls back gracefully for unknown brands.
  */
 const GAME_DISPLAY_META: Record<string, { img: string; title: string; ctg: string; bg: string; dev: string }> = {
   "MOBILE LEGENDS": { img: "/games/mobile-legends.png", title: "Mobile Legends", ctg: "MOBA", bg: "/games/promo_ml.png", dev: "Moonton" },
@@ -108,6 +99,7 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
   const [isLoading, setIsLoading] = useState(false);
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherError, setVoucherError] = useState("");
+  const [voucherDiscount, setVoucherDiscount] = useState(0);
   const [isVoucherApplied, setIsVoucherApplied] = useState(false);
   const [showHowTo, setShowHowTo] = useState(false);
   const [toastMsg, setToastMsg] = useState<{name: string, item: string} | null>(null);
@@ -178,7 +170,7 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
       const res = await fetch("/api/create-transaction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sku: selectedSku, gameId, zoneId })
+        body: JSON.stringify({ sku: selectedSku, gameId, zoneId, voucherCode: isVoucherApplied ? voucherCode : null })
       });
 
       const data = await res.json();
@@ -186,18 +178,10 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
 
       if (window.snap) {
         window.snap.pay(data.token, {
-          onSuccess: function(result: any){
-            router.push(`/topup/success?order_id=${result.order_id || 'trxkustom'}`);
-          },
-          onPending: function(result: any){
-            router.push(`/topup/success?order_id=${result.order_id || 'trxkustom'}&pending=true`);
-          },
-          onError: function(result: any){
-            router.push('/topup/error');
-          },
-          onClose: function(){
-            console.log('User closed midtrans popup');
-          }
+          onSuccess: (result: any) => router.push(`/topup/success?order_id=${result.order_id || 'trxkustom'}`),
+          onPending: (result: any) => router.push(`/topup/success?order_id=${result.order_id || 'trxkustom'}&pending=true`),
+          onError: () => router.push('/topup/error'),
+          onClose: () => console.log('User closed midtrans popup')
         });
       } else {
         alert("Sistem pembayaran gagal dimuat. Periksa koneksi internet Anda.");
@@ -209,36 +193,33 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
     }
   };
 
-  /**
-   * Applies the voucher code entered by the user.
-   * In this version, we support one hardcoded promo code for demonstration.
-   * To scale: replace this with an API call to validate against a vouchers collection.
-   *
-   * The discount is applied as a flat Rp 5.000 reduction on the selected package.
-   * Production NOTE: The final price MUST be verified server-side in create-transaction
-   * to prevent client-side price manipulation.
-   */
-  const handleVoucher = () => {
+  const handleVoucher = async () => {
     setVoucherError("");
+    setVoucherDiscount(0);
+    setIsVoucherApplied(false);
+    
     if (!voucherCode.trim()) return;
+    if (!selectedProduct) return setVoucherError("Pilih nominal terlebih dahulu!");
 
-    const VALID_VOUCHERS: Record<string, number> = {
-      SULTAN: 5000,
-      ETER10: 10000,
-    };
-
-    const discount = VALID_VOUCHERS[voucherCode.trim().toUpperCase()];
-    if (discount !== undefined) {
-      setIsVoucherApplied(true);
-    } else {
-      setVoucherError("Kode voucher tidak valid atau sudah kadaluarsa.");
+    setIsLoading(true);
+    try {
+      const res = await validateVoucher(voucherCode.trim(), selectedProduct.price);
+      if (res.success) {
+        setVoucherDiscount(res.discount || 0);
+        setIsVoucherApplied(true);
+      } else {
+        setVoucherError(res.message || "Voucher tidak valid.");
+      }
+    } catch (error) {
+      setVoucherError("Gagal memvalidasi voucher.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const isValidToPay = !!selectedSku && !!gameId && (!needsZoneId || !!zoneId);
   const basePrice = selectedProduct?.price ?? 0;
-  const VOUCHER_DISCOUNT = 5000;
-  const finalPrice = isVoucherApplied ? Math.max(0, basePrice - VOUCHER_DISCOUNT) : basePrice;
+  const finalPrice = isVoucherApplied ? Math.max(0, basePrice - voucherDiscount) : basePrice;
 
   return (
     <>
@@ -280,7 +261,7 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
             </div>
          </div>
 
-         {/* MAIN CHECKOUT GRID - Clean 2:1 Proportions */}
+         {/* MAIN CHECKOUT GRID */}
          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
            
            {/* LEFT COLUMN: Steps 1 & 2 */}
@@ -309,243 +290,274 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
                <AnimatePresence>
                  {showHowTo && (
                    <motion.div 
-                     initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                     initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                      className="overflow-hidden mb-6"
                    >
-                      <div className="bg-[#0a0f16] p-4 rounded-xl border border-white/5">
-                         <p className="text-slate-300 text-sm leading-relaxed">
-                            1. Masuk ke profil dalam game {brand}.<br/>
-                            {needsZoneId ? (
-                              <>2. Salin User ID dan Zone ID Anda.<br/></>
-                            ) : (
-                              <>2. Salin User ID Anda.<br/></>
-                            )}
-                            3. Masukkan ke dalam form tanpa spasi atau tanda kurung.
-                         </p>
-                      </div>
+                     <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-slate-300 text-sm leading-relaxed">
+                        Masukkan User ID dan Zone ID akun Anda. Anda bisa menekan tombol petunjuk ini untuk melihat cara menemukannya di dalam game. Pastikan data yang dimasukkan sudah benar untuk menghindari kesalahan pengiriman.
+                     </div>
                    </motion.div>
                  )}
                </AnimatePresence>
-               
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <div className="relative">
-                   <div className="text-xs text-slate-400 font-bold mb-1.5 ml-1">User ID</div>
-                   <input 
-                     type="text" value={gameId} onChange={e => setGameId(e.target.value.trim())}
-                     placeholder="Contoh: 12345678"
-                     className="w-full bg-[#0a0f16] border border-white/10 text-white px-4 py-3.5 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all font-mono text-sm sm:text-base placeholder:text-slate-600"
-                   />
-                 </div>
-                 <AnimatePresence>
-                   {needsZoneId && (
-                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                       <div className="text-xs text-slate-400 font-bold mb-1.5 ml-1">Zone ID</div>
-                       <input 
-                         type="text" value={zoneId} onChange={e => setZoneId(e.target.value.trim())}
-                         placeholder="Contoh: 1234"
-                         className="w-full bg-[#0a0f16] border border-white/10 text-white px-4 py-3.5 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all font-mono text-sm sm:text-base placeholder:text-slate-600"
-                       />
-                     </motion.div>
-                   )}
-                 </AnimatePresence>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">User ID</label>
+                    <input 
+                      type="text" value={gameId} onChange={(e) => setGameId(e.target.value)}
+                      placeholder="Masukkan User ID"
+                      className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-4 px-6 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                    />
+                  </div>
+                  {needsZoneId && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">Zone ID</label>
+                      <input 
+                        type="text" value={zoneId} onChange={(e) => setZoneId(e.target.value)}
+                        placeholder="Maukkan Zone ID"
+                        className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-4 px-6 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                      />
+                    </div>
+                  )}
                </div>
              </motion.div>
 
-             {/* STEP 2: NOMINAL BLOCK */}
+             {/* STEP 2: SELECT NOMINAL */}
              <motion.div 
-               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
-               className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-8 shadow-xl"
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
+                className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-8 shadow-xl"
              >
-               <div className="flex items-center justify-between mb-8">
-                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-fuchsia-500 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg shadow-fuchsia-500/20">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-fuchsia-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg shadow-fuchsia-600/20">
                       2
                     </div>
                     <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Pilih Nominal</h2>
-                 </div>
-                 <div className="hidden sm:flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs px-2.5 py-1 rounded-full font-bold">
+                  </div>
+                  <div className="hidden sm:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white/5 px-4 py-1.5 rounded-full border border-white/5">
                     <Flame className="w-3.5 h-3.5" /> Terlaris
-                 </div>
-               </div>
-               
-               <div className="space-y-10">
-                 {groupedProducts.map((group: { label: string; items: TopupProduct[]; icon: any }) => {
-                   const GroupIcon = group.icon;
-                   return (
-                     <div key={group.label} className="space-y-4">
-                       <div className="flex items-center gap-2 text-slate-400 mb-4 ml-1">
-                         <GroupIcon className="w-4 h-4 text-fuchsia-500" />
-                         <h3 className="text-sm font-black uppercase tracking-widest">{group.label}</h3>
-                       </div>
-                       
-                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-                         {group.items.map((p: TopupProduct, idx: number) => {
-                           const isSelected = selectedSku === p.sku;
-                           const isHot = idx === 0 && group.label === "Top Up Game";
-                           const isDiamond = p.name.toLowerCase().includes("diamond");
-                           return (
-                             <button
-                               key={p.sku}
-                               onClick={() => setSelectedSku(p.sku)}
-                               className={`relative p-4 md:p-5 text-left flex flex-col justify-center transition-all duration-200 rounded-2xl border overflow-hidden bg-[#0a0f16] group ${
-                                 isSelected 
-                                   ? "border-fuchsia-400/80 bg-fuchsia-500/5 ring-1 ring-fuchsia-400/50 shadow-[0_0_15px_rgba(217,70,239,0.15)]" 
-                                   : "border-white/5 hover:border-white/20 hover:bg-[#1a2333]"
-                               }`}
-                             >
-                               {isHot && !isSelected && (
-                                  <span className="absolute -right-6 top-2 bg-gradient-to-r from-rose-600 to-red-600 text-[8px] font-black tracking-widest text-white px-8 py-0.5 rotate-45 z-10 shadow-md">HOT</span>
-                               )}
-                               
-                               {isDiamond && (
-                                  <Gem className="w-4 h-4 text-cyan-400 mb-2 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
-                               )}
-                               
-                               <span className="text-white font-bold text-sm md:text-base mb-1 z-10 leading-tight">{p.name}</span>
-                               <span className={`font-semibold z-10 text-xs md:text-sm transition-colors ${isSelected ? 'text-fuchsia-400' : 'text-slate-400'}`}>
-                                 {formatRupiah(p.price)}
-                               </span>
-                               {isSelected && (
-                                  <div className="absolute top-3 right-3 bg-fuchsia-500 rounded-full p-0.5 z-10 hidden sm:block">
-                                     <CheckCircle2 className="w-4 h-4 text-white" />
-                                  </div>
-                               )}
-                             </button>
-                           )
-                         })}
-                       </div>
-                     </div>
-                   )
-                 })}
-               </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-10">
+                  {groupedProducts.map((group: { label: string; items: TopupProduct[]; icon: any }) => {
+                    const GroupIcon = group.icon;
+                    return (
+                      <div key={group.label} className="space-y-4">
+                        <div className="flex items-center gap-2 text-slate-400 mb-4 ml-1">
+                          <GroupIcon className="w-4 h-4 text-fuchsia-500" />
+                          <h3 className="text-sm font-black uppercase tracking-widest">{group.label}</h3>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+                          {group.items.map((p: TopupProduct, idx: number) => {
+                            const isSelected = selectedSku === p.sku;
+                            const isHot = idx === 0 && group.label === "Top Up Game";
+                            const isDiamond = p.name.toLowerCase().includes("diamond");
+                            return (
+                              <button
+                                key={p.sku}
+                                onClick={() => setSelectedSku(p.sku)}
+                                className={`relative p-4 md:p-5 text-left flex flex-col justify-center transition-all duration-200 rounded-2xl border overflow-hidden bg-[#0a0f16] group ${
+                                  isSelected 
+                                    ? "border-fuchsia-400/80 bg-fuchsia-500/5 ring-1 ring-fuchsia-400/50 shadow-[0_0_15px_rgba(217,70,239,0.15)]" 
+                                    : "border-white/5 hover:border-white/20 hover:bg-[#1a2333]"
+                                }`}
+                              >
+                                {isHot && !isSelected && (
+                                   <span className="absolute -right-6 top-2 bg-gradient-to-r from-rose-600 to-red-600 text-[8px] font-black tracking-widest text-white px-8 py-0.5 rotate-45 z-10 shadow-md">HOT</span>
+                                )}
+                                
+                                {isDiamond && (
+                                   <Gem className="w-4 h-4 text-cyan-400 mb-2 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
+                                )}
+                                
+                                <span className="text-white font-bold text-sm md:text-base mb-1 z-10 leading-tight">{p.name}</span>
+                                <span className={`font-semibold z-10 text-xs md:text-sm transition-colors ${isSelected ? 'text-fuchsia-400' : 'text-slate-400'}`}>
+                                  {formatRupiah(p.price)}
+                                </span>
+                                
+                                <div className={`absolute inset-0 bg-gradient-to-br from-fuchsia-600/10 to-transparent transition-opacity duration-300 ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
              </motion.div>
-
            </div>
 
-           {/* RIGHT COLUMN: Step 3 & Summary (Sticky on Desktop) */}
-           <div className="lg:col-span-1">
+           {/* RIGHT COLUMN: Step 3 & Summary */}
+           <div className="flex flex-col gap-6">
+             
+             {/* STEP 3: PAYMENT */}
              <motion.div 
-               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }}
-               className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-6 shadow-xl lg:sticky lg:top-24 flex flex-col gap-6"
+               initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.2 }}
+               className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-8 shadow-xl"
              >
-                {/* PAYMENT METHODS */}
-                <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 bg-emerald-500 text-white rounded-full flex items-center justify-center font-bold shadow-lg shadow-emerald-500/20">
-                      3
-                    </div>
-                    <h2 className="text-lg font-bold text-white tracking-tight">Metode Bayar</h2>
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="w-10 h-10 bg-emerald-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg shadow-emerald-600/20">
+                    3
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    {PAYMENT_METHODS.map((pm) => (
-                        <button 
-                          key={pm.id} onClick={() => setSelectedPayment(pm.id)}
-                          className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 ${
-                            selectedPayment === pm.id 
-                              ? `border-${pm.highlight.split('-')[1]}-400 bg-${pm.highlight.split('-')[1]}-500/10`
-                              : `bg-[#0a0f16] border-white/5 hover:bg-white/5`
-                          }`}
-                        >
-                           <div className="w-8 h-8 relative flex items-center justify-center">
-                             {(pm as any).image ? (
-                               <Image src={(pm as any).image} alt={pm.name} fill className="object-contain" />
-                             ) : (
-                               <span className="text-xl">{pm.icon}</span>
-                             )}
-                           </div>
-                           <div className="text-left flex-1">
-                              <div className="text-white font-bold text-xs">{pm.name}</div>
-                           </div>
-                           {selectedPayment === pm.id && (
-                             <div className={`w-2 h-2 rounded-full ${pm.highlight}`}></div>
-                           )}
-                        </button>
-                    ))}
-                  </div>
+                  <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Pembayaran</h2>
                 </div>
 
-                <div className="h-px bg-white/5 w-full"></div>
+                <div className="space-y-3">
+                   {PAYMENT_METHODS.map((pm) => (
+                     <button
+                        key={pm.id}
+                        onClick={() => setSelectedPayment(pm.id)}
+                        className={`w-full group relative overflow-hidden flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                          selectedPayment === pm.id 
+                            ? `bg-gradient-to-r ${pm.color} ${pm.border} border-opacity-50 shadow-lg` 
+                            : "bg-[#0a0f16] border-white/5 hover:border-white/20"
+                        }`}
+                     >
+                       <div className="flex items-center gap-4 z-10">
+                          <div className={`w-12 h-8 bg-white/5 rounded-lg flex items-center justify-center p-1 border border-white/5 transition-colors ${selectedPayment === pm.id ? 'bg-white/10' : ''}`}>
+                             {pm.image ? <Image src={pm.image} alt={pm.name} width={40} height={20} className="object-contain" /> : <span className="text-lg">{pm.icon}</span>}
+                          </div>
+                          <div className="text-left">
+                            <div className="text-white font-bold text-sm">{pm.name}</div>
+                            <div className="text-[10px] uppercase tracking-widest text-slate-500 font-black">{pm.type}</div>
+                          </div>
+                       </div>
+                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all z-10 ${selectedPayment === pm.id ? 'bg-white border-transparent' : 'border-white/10'}`}>
+                          {selectedPayment === pm.id && <Check className="w-3 h-3 text-emerald-600" />}
+                       </div>
+                       {selectedPayment === pm.id && (
+                         <motion.div layoutId="pay-highlight" className={`absolute left-0 w-1.5 h-full ${pm.highlight}`} />
+                       )}
+                     </button>
+                   ))}
+                </div>
 
-                {/* VOUCHER INPUT */}
-                <div>
-                   <div className="text-xs font-bold text-yellow-500 mb-2 flex items-center gap-1"><Ticket className="w-3.5 h-3.5" /> Kode Promo/Voucher</div>
+                {/* VOUCHER SECTION */}
+                <div className="mt-8 pt-8 border-t border-white/5">
+                   <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1 block mb-3">Promo / Voucher</label>
                    <div className="flex gap-2">
-                      <input 
-                        type="text" value={voucherCode} onChange={e => setVoucherCode(e.target.value)}
-                        disabled={isVoucherApplied} placeholder="Ketik SULTAN..."
-                        className="flex-1 bg-[#0a0f16] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500"
-                      />
-                      {isVoucherApplied ? (
-                        <button onClick={() => { setIsVoucherApplied(false); setVoucherCode(""); }} className="bg-rose-500/20 text-rose-400 border border-rose-500/50 px-3 py-2 rounded-lg text-sm font-bold transition-all">Batal</button>
-                      ) : (
-                        <button onClick={handleVoucher} className="bg-yellow-500 hover:bg-yellow-400 text-black px-3 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-50" disabled={!voucherCode}>Klaim</button>
-                      )}
+                      <div className="relative flex-1">
+                        <input 
+                          type="text" value={voucherCode} onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                          placeholder="KODE PROMO"
+                          className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-3 px-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 uppercase font-black tracking-widest text-sm"
+                        />
+                      </div>
+                      <button 
+                         onClick={handleVoucher}
+                         disabled={isLoading || !voucherCode}
+                         className="bg-white hover:bg-slate-200 disabled:opacity-50 text-black font-black px-6 rounded-2xl text-xs transition-all flex items-center gap-2"
+                      >
+                         {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "CEK"}
+                      </button>
                    </div>
-                   {isVoucherApplied && <p className="text-emerald-400 text-xs mt-1.5 flex items-center gap-1 font-medium"><Check className="w-3 h-3" /> Potongan Rp 5.000 sukses!</p>}
+                   {voucherError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-rose-500 text-[10px] font-bold mt-2 ml-1">{voucherError}</motion.p>}
+                   {isVoucherApplied && (
+                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2 text-emerald-400 text-[10px] font-bold mt-2 ml-1 bg-emerald-500/10 w-fit px-2 py-1 rounded-lg border border-emerald-500/20">
+                        <CheckCircle2 className="w-3 h-3" /> Voucher berhasil diterapkan! Potongan {formatRupiah(voucherDiscount)}
+                     </motion.div>
+                   )}
                 </div>
+             </motion.div>
 
-                {/* SUMMARY BLOCK */}
-                <div className="bg-[#0a0f16] rounded-xl p-4 border border-white/5 space-y-3">
-                   <div className="flex justify-between items-start">
-                      <span className="text-xs text-slate-400 font-semibold mt-0.5">Item</span>
-                      <span className="text-sm font-bold text-white text-right break-words max-w-[150px]">{selectedProduct ? selectedProduct.name : '-'}</span>
+             {/* ORDER SUMMARY BLOCK */}
+             <motion.div 
+               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.3 }}
+               className="bg-[#111823] border border-white/5 rounded-3xl p-8 shadow-xl relative overflow-hidden"
+             >
+                <div className="relative z-10 space-y-6">
+                   <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-bold text-white tracking-tight">Ringkasan</h3>
+                      <ShieldCheck className="w-5 h-5 text-emerald-500" />
                    </div>
-                   <div className="flex justify-between items-start">
-                      <span className="text-xs text-slate-400 font-semibold mt-0.5">ID Game</span>
-                      <span className="text-xs font-bold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded text-right">{gameId || '-'}</span>
-                   </div>
-                   <div className="h-px bg-white/5 w-full"></div>
-                   <div className="flex justify-between items-center pt-1">
-                      <span className="text-xs font-bold text-slate-300">Total Harga</span>
-                      <div className="text-right flex flex-col items-end">
-                        {isVoucherApplied && <span className="line-through text-slate-500 text-[10px]">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(basePrice)}</span>}
-                        <span className="text-xl font-black text-emerald-400 leading-none">
-                          {selectedProduct ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(finalPrice) : "Rp 0"}
-                        </span>
+
+                   <div className="space-y-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Produk</span>
+                        <span className="text-white font-medium text-right max-w-[150px] truncate">{selectedProduct?.name || "-"}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Pembayaran</span>
+                        <span className="text-white font-medium">{PAYMENT_METHODS.find(p => p.id === selectedPayment)?.name}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Harga Dasar</span>
+                        <span className="text-white font-medium">{formatRupiah(basePrice)}</span>
+                      </div>
+                      {isVoucherApplied && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-emerald-500">Diskon Voucher</span>
+                          <span className="text-emerald-500 font-bold">-{formatRupiah(voucherDiscount)}</span>
+                        </div>
+                      )}
+                      
+                      <div className="h-px bg-white/5 my-4" />
+                      
+                      <div className="flex justify-between items-end">
+                        <span className="text-slate-500 text-xs pb-1">Total Pembayaran</span>
+                        <span className="text-2xl font-black text-white">{formatRupiah(finalPrice)}</span>
                       </div>
                    </div>
-                </div>
 
-                <button
-                  onClick={handlePayment}
-                  disabled={isLoading || !isValidToPay}
-                  className={`w-full py-4 rounded-xl font-bold text-base text-white transition-all flex items-center justify-center gap-2 shadow-lg
-                    ${isLoading || !isValidToPay
-                      ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5" 
-                      : "bg-emerald-500 hover:bg-emerald-400 hover:-translate-y-0.5"}
-                  `}
-                >
-                  {isLoading ? (
-                    <span className="flex items-center gap-2 text-sm drop-shadow-md">Memproses Transaksi...</span>
-                  ) : (
-                    <>BAYAR SEKARANG <CreditCard className="w-5 h-5" /></>
-                  )}
-                </button>
+                   <button 
+                     onClick={handlePayment}
+                     disabled={!isValidToPay || isLoading}
+                     className={`w-full py-5 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl ${
+                       isValidToPay && !isLoading
+                         ? "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20 active:scale-95" 
+                         : "bg-white/5 text-slate-600 cursor-not-allowed"
+                     }`}
+                   >
+                     {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6" />}
+                     KONFIRMASI TOP UP
+                   </button>
+                   
+                   <p className="text-[10px] text-center text-slate-600 mt-4 leading-relaxed">
+                     Dengan menekan tombol di atas, Anda menyetujui <span className="text-slate-400 underline">Syarat & Ketentuan</span> kami. Proses pengiriman biasanya memakan waktu 1-5 menit.
+                   </p>
+                </div>
+                
+                {/* Subtle Decorative Elements */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl -z-10" />
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-fuchsia-500/5 blur-3xl -z-10" />
              </motion.div>
            </div>
 
          </div>
       </div>
 
-      {/* FLOAT NOTIFICATIONS */}
+      {/* FLOATING TOASTS (Social Proof) */}
       <AnimatePresence>
         {toastMsg && (
           <motion.div 
-            initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#111823]/95 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl p-3 flex items-center gap-3 w-max max-w-[90vw]"
+            initial={{ opacity: 0, x: 50, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 50, scale: 0.9 }}
+            className="fixed bottom-6 right-6 z-50 bg-[#1a2333]/90 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl flex items-center gap-4 max-w-sm"
           >
-            <div className="p-2 bg-blue-500/20 rounded-xl relative shrink-0">
-               <BellRing className="w-4 h-4 text-blue-400" />
-            </div>
-            <div className="text-xs sm:text-sm">
-               <p className="text-slate-300 font-medium leading-tight">
-                 <strong className="text-white">{toastMsg.name}</strong> baru beli <strong className="text-yellow-400">{toastMsg.item}</strong>
-               </p>
-            </div>
+             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-fuchsia-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
+                <BellRing className="w-5 h-5" />
+             </div>
+             <div>
+                <div className="text-white text-xs font-bold">{toastMsg.name} baru saja membeli</div>
+                <div className="text-fuchsia-400 text-[10px] font-black uppercase tracking-widest mt-0.5">{toastMsg.item}</div>
+                <div className="text-slate-500 text-[9px] mt-1">1 menit yang lalu • Verified ✅</div>
+             </div>
+             <button onClick={() => setToastMsg(null)} className="ml-2 text-slate-500 hover:text-white">
+                <X className="w-4 h-4" />
+             </button>
           </motion.div>
         )}
       </AnimatePresence>
     </>
-  )
+  );
+}
+
+function Loader2({ className }: { className?: string }) {
+  return (
+    <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+  );
 }
