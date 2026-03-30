@@ -32,9 +32,9 @@ export default async function GameTopupPage(props: { params: Promise<{ game: str
   
   let products: any[] = [];
   let matchedBrand: string | undefined = undefined;
+  let gameConfig: any = null;
 
   try {
-    // DYNAMIC REVERSE-LOOKUP: match the URL slug back to the exact Digiflazz Brand
     const distinctBrands = await prisma.topupProduct.findMany({
       where: { isActive: true },
       select: { brand: true },
@@ -44,10 +44,18 @@ export default async function GameTopupPage(props: { params: Promise<{ game: str
     matchedBrand = distinctBrands.find(p => p.brand.toLowerCase().replace(/[^a-z0-9]+/g, '-') === gameSlug)?.brand;
 
     if (matchedBrand) {
-      products = await prisma.topupProduct.findMany({
-        where: { brand: matchedBrand, isActive: true },
-        orderBy: { price: "asc" }
-      });
+      // Parallel fetch products and branding config
+      const [pData, cData] = await Promise.all([
+        prisma.topupProduct.findMany({
+          where: { brand: matchedBrand, isActive: true },
+          orderBy: { price: "asc" }
+        }),
+        prisma.gameConfig.findFirst({
+          where: { brand: matchedBrand }
+        })
+      ]);
+      products = pData;
+      gameConfig = cData;
     }
   } catch {
     // DB unavailable
@@ -58,7 +66,7 @@ export default async function GameTopupPage(props: { params: Promise<{ game: str
   return (
     <div className="min-h-screen bg-[#0a0f16] text-slate-200 pb-20">
       <main className="container mx-auto px-0 py-0 max-w-6xl relative z-10 w-full overflow-x-hidden">
-        <CheckoutClient products={products} brand={matchedBrand} />
+        <CheckoutClient products={products} brand={matchedBrand} config={gameConfig} />
       </main>
     </div>
   );

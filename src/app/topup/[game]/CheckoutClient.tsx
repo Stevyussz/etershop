@@ -19,10 +19,14 @@ import Script from "next/script";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ShieldCheck, Zap, ArrowLeft, CreditCard, BellRing, Info, Flame, ChevronDown, Ticket, Check, X } from "lucide-react";
+import { 
+  CheckCircle2, ShieldCheck, Zap, ArrowLeft, 
+  CreditCard, BellRing, Info, Flame, ChevronDown, 
+  Ticket, Check, X, Gem 
+} from "lucide-react";
 import { formatRupiah, slugifyBrand } from "@/lib/utils";
 // @ts-ignore
-import type { TopupProduct } from "@prisma/client";
+import type { TopupProduct, GameConfig } from "@prisma/client";
 
 // ─────────────────────────────────────────────
 // TYPES & CONSTANTS
@@ -31,6 +35,7 @@ import type { TopupProduct } from "@prisma/client";
 interface CheckoutClientProps {
   products: TopupProduct[];
   brand: string;
+  config?: GameConfig | null;
 }
 
 /**
@@ -79,9 +84,21 @@ const PAYMENT_METHODS = [
   { id: "bca", name: "BCA VA", type: "Bank", icon: "🏦", color: "from-blue-700/20 to-blue-900/10", border: "border-indigo-500", highlight: "bg-indigo-500" },
 ];
 
-export default function CheckoutClient({ products, brand }: CheckoutClientProps) {
+export default function CheckoutClient({ products, brand, config }: CheckoutClientProps) {
   const router = useRouter();
-  const meta = resolveCheckoutMeta(brand);
+  
+  // Use config data if available, fallback to resolveCheckoutMeta
+  const meta = useMemo(() => {
+    const fallback = resolveCheckoutMeta(brand);
+    if (!config) return fallback;
+
+    return {
+      ...fallback,
+      title: config.title || brand,
+      bg: config.imageUrl || fallback.bg,
+    };
+  }, [brand, config]);
+
   const needsZoneId = GAMES_REQUIRING_ZONE_ID.has(brand.trim().toUpperCase());
 
   const [gameId, setGameId] = useState("");
@@ -229,12 +246,19 @@ export default function CheckoutClient({ products, brand }: CheckoutClientProps)
 
       {/* HEADER HERO SECTION */}
       <div className="absolute top-0 left-0 w-full h-[400px] md:h-[500px] overflow-hidden -z-10 bg-[#0a0f16]">
-         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-[#0a0f16]/80 to-[#0a0f16]/30 z-10"></div>
+         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-[#0a0f16]/90 to-[#0a0f16]/30 z-10"></div>
          <motion.div 
            initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 0.5, scale: 1 }} transition={{ duration: 1 }}
            className="w-full h-full relative"
          >
-            <Image src={meta.bg} alt="Cover Game" fill className="object-cover object-top filter mix-blend-screen" priority />
+            <Image 
+              src={meta.bg} 
+              alt={meta.title} 
+              fill 
+              className="object-cover object-top filter contrast-125 brightness-75" 
+              priority 
+              unoptimized={true}
+            />
          </motion.div>
       </div>
 
@@ -246,7 +270,7 @@ export default function CheckoutClient({ products, brand }: CheckoutClientProps)
             </Link>
             <div>
                <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-lg">
-                   {brand}
+                   {meta.title}
                </h1>
                <div className="flex flex-wrap items-center gap-2 mt-2">
                   <span className="bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded text-xs font-bold border border-blue-500/20">{meta.ctg}</span>
@@ -358,6 +382,7 @@ export default function CheckoutClient({ products, brand }: CheckoutClientProps)
                          {group.items.map((p: TopupProduct, idx: number) => {
                            const isSelected = selectedSku === p.sku;
                            const isHot = idx === 0 && group.label === "Top Up Game";
+                           const isDiamond = p.name.toLowerCase().includes("diamond");
                            return (
                              <button
                                key={p.sku}
@@ -372,9 +397,13 @@ export default function CheckoutClient({ products, brand }: CheckoutClientProps)
                                   <span className="absolute -right-6 top-2 bg-gradient-to-r from-rose-600 to-red-600 text-[8px] font-black tracking-widest text-white px-8 py-0.5 rotate-45 z-10 shadow-md">HOT</span>
                                )}
                                
+                               {isDiamond && (
+                                  <Gem className="w-4 h-4 text-cyan-400 mb-2 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
+                               )}
+                               
                                <span className="text-white font-bold text-sm md:text-base mb-1 z-10 leading-tight">{p.name}</span>
                                <span className={`font-semibold z-10 text-xs md:text-sm transition-colors ${isSelected ? 'text-fuchsia-400' : 'text-slate-400'}`}>
-                                 {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(p.price)}
+                                 {formatRupiah(p.price)}
                                </span>
                                {isSelected && (
                                   <div className="absolute top-3 right-3 bg-fuchsia-500 rounded-full p-0.5 z-10 hidden sm:block">

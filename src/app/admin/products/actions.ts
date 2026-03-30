@@ -19,6 +19,12 @@ const EXCLUDED_KEYWORDS = [
   "bpjs", "telkom", "tv", "gas", "e-money", "pajak", "grab", "gojek"
 ] as const;
 
+/** Keywords used to identify game-related products from Digiflazz. */
+const GAME_KEYWORDS = ["game", "voucher", "mobile", "pc", "topup", "hiburan"] as const;
+
+/** The chunk size for batched database upserts. */
+const DB_UPSERT_CHUNK_SIZE = 200;
+
 /**
  * Transforms a raw Digiflazz product object into the shape needed by our database.
  */

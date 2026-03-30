@@ -13,8 +13,12 @@
 "use client";
 
 import { useTransition, useState, useMemo } from "react";
-import { runDigiflazzSync } from "./actions";
-import { RefreshCcw, Search, ServerCrash, CheckCircle2, ShieldAlert, Filter, ToggleLeft, ToggleRight, TrendingUp, X } from "lucide-react";
+import { runDigiflazzSync, toggleProductStatus } from "./actions";
+import { 
+  RefreshCcw, Search, ServerCrash, CheckCircle2, 
+  ShieldAlert, Filter, ToggleLeft, ToggleRight, 
+  TrendingUp, X 
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatRupiah } from "@/lib/utils";
 
@@ -79,6 +83,15 @@ export default function ProductDashboardClient({ products }: { products: Product
     });
   };
 
+  const handleToggle = (id: string, currentStatus: boolean) => {
+    startTransition(async () => {
+      const res = await toggleProductStatus(id, currentStatus);
+      if (!res.success) {
+        setToast({ msg: res.message || "Gagal mengubah status.", type: "error" });
+      }
+    });
+  };
+
   // Compute total margin for currently visible products
   const totalMargin = useMemo(
     () => filtered.reduce((sum, p) => sum + (p.price - p.originalPrice), 0),
@@ -116,7 +129,7 @@ export default function ProductDashboardClient({ products }: { products: Product
           }`}
         >
           <RefreshCcw className={`w-5 h-5 ${isPending ? "animate-spin" : ""}`} />
-          {isPending ? "Menyinkronisasi..." : "🔄 Tarik Data Digiflazz"}
+          {isPending ? "Menyinkronisasi..." : "Tarik Data Digiflazz"}
         </button>
       </div>
 
