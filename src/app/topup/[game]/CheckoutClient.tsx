@@ -127,10 +127,10 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
       const res = await validateNickname(brand, gameId, zoneId);
       clearTimeout(timeoutIndicator);
 
-      if (res.success) {
+      if (res.success && res.nickname) {
         setNickname(res.nickname);
       } else {
-        setNickError(res.message || "Gagal cek nickname.");
+        setNickError(res.message || "Gagal cek nickname. Cek ID kembali.");
       }
     } catch (e) {
       setNickError("Layanan pengecekan sedang gangguan.");
