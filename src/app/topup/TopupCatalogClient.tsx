@@ -1,10 +1,12 @@
 /**
  * @file src/app/topup/TopupCatalogClient.tsx
- * @description Client-side interactive catalog for the Topup page.
+ * @description Client-side game catalog with premium "Poster Grid" layout.
  *
- * Renders a hero slider, search bar, category filter tabs, and the game grid.
- * All data is passed from the server component (TopupPage) to keep this component
- * purely presentational — no data fetching happens here.
+ * This component handles:
+ * - Real-time filtering and search
+ * - Hero slider for promotions
+ * - Animated grid of game posters
+ * - Dynamic metadata resolution from DB or fallback defaults
  */
 
 "use client";
@@ -14,68 +16,30 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { slugifyBrand } from "@/lib/utils";
-import { Zap, Flame, Monitor, Smartphone, ChevronRight, Search, ShieldCheck, Trophy, Clock, Gamepad, Gift } from "lucide-react";
+import { 
+  Zap, Flame, Monitor, Smartphone, ChevronRight, 
+  Search, ShieldCheck, Trophy, Clock, Gamepad, Gift,
+  ImageIcon, Sparkles
+} from "lucide-react";
 
-// ─────────────────────────────────────────────
-// GAME METADATA CATALOGUE
-// ─────────────────────────────────────────────
-
-/**
- * Category types for filtering.
- * "Mobile" = Mobile games, "PC" = Desktop games, "Voucher" = Digital vouchers.
- */
 type GameCategory = "Semua" | "Mobile" | "PC" | "Voucher" | "Lainnya";
 
 interface GameMeta {
   slug: string;
-  img: string;
+  img: string | null;
   title: string;
   ctg: GameCategory;
-  brand: string; // Keep original brand for deduplication
+  brand: string;
+  isPopular: boolean;
 }
 
-/**
- * Curated metadata for well-known games.
- * Add entries here as new games are added to the Digiflazz catalog.
- * Key: UPPERCASE brand name exactly as returned by Digiflazz API.
- */
-const GAME_METADATA_MAP: Record<string, Omit<GameMeta, "slug" | "brand">> = {
-  "MOBILE LEGENDS": { img: "/games/mobile-legends.png", title: "Mobile Legends", ctg: "Mobile" },
-  "FREE FIRE": { img: "/games/free-fire.png", title: "Free Fire", ctg: "Mobile" },
-  "VALORANT": { img: "/games/valorant.png", title: "Valorant", ctg: "PC" },
-  "GENSHIN IMPACT": { img: "/games/default.png", title: "Genshin Impact", ctg: "Mobile" },
-  "PUBG MOBILE": { img: "/games/default.png", title: "PUBG Mobile", ctg: "Mobile" },
-  "PUBG PC": { img: "/games/default.png", title: "PUBG PC", ctg: "PC" },
-  "CALL OF DUTY MOBILE": { img: "/games/default.png", title: "Call of Duty Mobile", ctg: "Mobile" },
-  "HONOR OF KINGS": { img: "/games/default.png", title: "Honor of Kings", ctg: "Mobile" },
-  "ARENA OF VALOR": { img: "/games/default.png", title: "Arena of Valor", ctg: "Mobile" },
-  "STEAM WALLET": { img: "/games/default.png", title: "Steam Wallet", ctg: "Voucher" },
-  "GOOGLE PLAY": { img: "/games/default.png", title: "Google Play", ctg: "Voucher" },
-  "ROBLOX": { img: "/games/default.png", title: "Roblox", ctg: "Mobile" },
-  "RAGNAROK M": { img: "/games/default.png", title: "Ragnarok M", ctg: "Mobile" },
-  "POINT BLANK": { img: "/games/default.png", title: "Point Blank", ctg: "PC" },
-};
-
-/**
- * Resolves a Digiflazz brand name to its full display metadata.
- * Falls back to a generic entry for unknown brands.
- */
-function resolveGameMeta(brand: string): GameMeta {
-  const key = brand.trim().toUpperCase();
-  const curated = GAME_METADATA_MAP[key];
-
-  return {
-    brand,
-    slug: slugifyBrand(brand), // Use centralized slugify
-    img: curated?.img ?? "/games/default.png",
-    title: curated?.title ?? brand,
-    ctg: curated?.ctg ?? "Lainnya",
-  };
-}
-
-// ─────────────────────────────────────────────
-// STATIC CONTENT
-// ─────────────────────────────────────────────
+const CATEGORIES: { label: GameCategory; icon: React.ElementType }[] = [
+  { label: "Semua", icon: Flame },
+  { label: "Mobile", icon: Smartphone },
+  { label: "PC", icon: Monitor },
+  { label: "Voucher", icon: Gift },
+  { label: "Lainnya", icon: Gamepad },
+];
 
 const BANNERS = [
   {
@@ -104,53 +68,50 @@ const BANNERS = [
   },
 ];
 
-const CATEGORIES: { label: GameCategory; icon: React.ElementType }[] = [
-  { label: "Semua", icon: Flame },
-  { label: "Mobile", icon: Smartphone },
-  { label: "PC", icon: Monitor },
-  { label: "Voucher", icon: Gift },
-  { label: "Lainnya", icon: Gamepad },
-];
-
-// ─────────────────────────────────────────────
-// COMPONENT
-// ─────────────────────────────────────────────
-
 interface Props {
-  /** Distinct brands from the database — each brand becomes one catalog card. */
   games: { brand: string }[];
+  configs: any[];
 }
 
-export default function TopupCatalogClient({ games }: Props) {
+export default function TopupCatalogClient({ games, configs }: Props) {
   const [activeTab, setActiveTab] = useState<GameCategory>("Semua");
   const [currentSlide, setCurrentSlide] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Auto-advance the hero banner slider every 5 seconds
+  // Auto-advance hero slider
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % BANNERS.length);
-    }, 5000);
+    }, 6000);
     return () => clearInterval(timer);
   }, []);
 
   /**
-   * Map and memoize game metadata — only recomputes when the `games` prop changes.
-   * Deduplication is handled by using a Map keyed by slug to prevent duplicate cards
-   * if Digiflazz returns the same brand in multiple categories.
+   * Merge raw brand names from TopupProduct with custom metadata from GameConfig.
    */
   const allGames = useMemo(() => {
     const seen = new Map<string, GameMeta>();
+    
     games.forEach((g) => {
-      const meta = resolveGameMeta(g.brand);
-      if (!seen.has(meta.slug)) {
-        seen.set(meta.slug, meta);
+      const config = configs.find(c => c.brand.trim().toUpperCase() === g.brand.trim().toUpperCase());
+      const slug = slugifyBrand(g.brand);
+      
+      if (!seen.has(slug)) {
+        seen.set(slug, {
+          brand: g.brand,
+          slug: slug,
+          img: config?.imageUrl || null,
+          title: config?.title || g.brand,
+          ctg: (config?.category as GameCategory) || "Lainnya",
+          isPopular: config?.isPopular || false
+        });
       }
     });
-    return Array.from(seen.values());
-  }, [games]);
 
-  /** Apply category filter + search query */
+    return Array.from(seen.values());
+  }, [games, configs]);
+
+  // Combined filter & search
   const filteredGames = useMemo(() => {
     let result = activeTab === "Semua" ? allGames : allGames.filter((g) => g.ctg === activeTab);
     if (searchQuery.trim()) {
@@ -161,16 +122,16 @@ export default function TopupCatalogClient({ games }: Props) {
   }, [allGames, activeTab, searchQuery]);
 
   return (
-    <div className="pb-24">
-      {/* ── HERO SLIDER ── */}
-      <div className="relative w-full h-[45vh] md:h-[60vh] max-h-[600px] overflow-hidden">
+    <div className="pb-32">
+      {/* ── STUNNING HERO SLIDER ── */}
+      <div className="relative w-full h-[40vh] md:h-[55vh] max-h-[600px] overflow-hidden">
         <AnimatePresence initial={false}>
           <motion.div
             key={currentSlide}
-            initial={{ opacity: 0, scale: 1.05 }}
+            initial={{ opacity: 0, scale: 1.1 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.8 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 1.2, ease: "easeOut" }}
             className="absolute inset-0"
           >
             <Image
@@ -180,190 +141,213 @@ export default function TopupCatalogClient({ games }: Props) {
               className="object-cover"
               priority
             />
-            <div className={`absolute inset-0 bg-gradient-to-t ${BANNERS[currentSlide].gradient} mix-blend-multiply`} />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-[#0a0f16]/60 to-transparent" />
+            {/* Layers of gradients for that "Netflix" depth effect */}
+            <div className={`absolute inset-0 bg-gradient-to-t ${BANNERS[currentSlide].gradient} mix-blend-multiply opacity-60`} />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-[#0a0f16]/30 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0f16]/80 via-transparent to-transparent hidden md:block" />
 
             {/* Banner Copy */}
-            <div className="absolute bottom-0 left-0 w-full p-8 md:p-16 z-10 container mx-auto pb-16 md:pb-24">
-              <motion.span
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
+            <div className="absolute bottom-0 left-0 w-full p-8 md:p-20 z-10 container mx-auto">
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="inline-block px-3 py-1 mb-3 rounded-full bg-red-500/20 text-red-400 border border-red-500/50 text-xs font-bold uppercase tracking-widest backdrop-blur-md"
+                className="inline-flex items-center gap-2 px-3 py-1 mb-4 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-black uppercase tracking-[0.2em] backdrop-blur-md"
               >
-                {BANNERS[currentSlide].label}
-              </motion.span>
+                <Sparkles className="w-3 h-3" /> {BANNERS[currentSlide].label}
+              </motion.div>
               <motion.h2
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="text-3xl md:text-5xl lg:text-7xl font-black text-white mb-2 drop-shadow-2xl tracking-tighter"
+                className="text-4xl md:text-6xl lg:text-8xl font-black text-white mb-2 leading-[0.9] tracking-tighter drop-shadow-2xl"
               >
                 {BANNERS[currentSlide].title}
               </motion.h2>
               <motion.p
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.5 }}
-                className="text-lg md:text-2xl text-slate-300 max-w-2xl font-medium"
+                className="text-base md:text-xl text-slate-300 max-w-xl font-medium leading-relaxed"
               >
                 {BANNERS[currentSlide].subtitle}
               </motion.p>
+              
+              <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.7 }}
+                className="mt-8 hidden md:block"
+              >
+                <Link href="/topup" className="bg-white text-black px-8 py-3.5 rounded-2xl font-black text-sm hover:scale-105 transition-transform flex items-center gap-2 w-fit">
+                   Beli Sekarang <ChevronRight className="w-5 h-5" />
+                </Link>
+              </motion.div>
             </div>
           </motion.div>
         </AnimatePresence>
 
-        {/* Dot navigation */}
-        <div className="absolute bottom-16 right-8 md:bottom-24 md:right-16 z-20 flex gap-2">
+        {/* Indicator dots */}
+        <div className="absolute bottom-12 right-8 md:bottom-20 md:right-20 z-20 flex gap-2">
           {BANNERS.map((_, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentSlide(idx)}
-              aria-label={`Slide ${idx + 1}`}
-              className={`h-2 rounded-full transition-all duration-300 ${
-                currentSlide === idx ? "w-10 bg-white" : "w-4 bg-white/30"
+              className={`h-1.5 rounded-full transition-all duration-500 ${
+                currentSlide === idx ? "w-10 bg-white" : "w-4 bg-white/20 hover:bg-white/40"
               }`}
             />
           ))}
         </div>
       </div>
 
-      {/* ── SEARCH & FILTER BAR ── */}
-      <main className="container mx-auto px-4 -mt-10 md:-mt-12 max-w-7xl relative z-30">
-        <div className="bg-[#111823]/90 backdrop-blur-2xl border border-white/10 rounded-3xl p-4 md:p-6 shadow-[0_20px_40px_rgba(0,0,0,0.5)] flex flex-col md:flex-row gap-4 md:items-center justify-between mb-12">
-          {/* Search Input */}
-          <div className="relative w-full md:w-96 group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-400 transition-colors" />
-            <input
-              type="text"
-              placeholder="Cari game favoritmu..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#0a0f16] border border-white/5 text-white pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all shadow-inner"
-            />
-          </div>
-
-          {/* Category Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+      {/* ── FLOATING FILTER BAR ── */}
+      <div className="container mx-auto px-4 -mt-10 md:-mt-14 max-w-7xl relative z-30">
+        <div className="bg-[#111823]/60 backdrop-blur-3xl border border-white/5 rounded-3xl p-3 md:p-4 shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
+          
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 lg:py-0">
             {CATEGORIES.map(({ label, icon: Icon }) => {
               const isActive = activeTab === label;
               return (
                 <button
                   key={label}
                   onClick={() => setActiveTab(label)}
-                  className={`relative px-5 py-3 rounded-xl font-bold whitespace-nowrap transition-colors duration-300 ${
-                    isActive ? "text-white" : "text-slate-500 hover:text-slate-300"
+                  className={`relative px-6 py-3 rounded-2xl font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-2.5 text-sm md:text-base ${
+                    isActive ? "text-white bg-blue-600 shadow-[0_0_20px_rgba(37,99,235,0.4)]" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
                   }`}
                 >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTabBadge"
-                      className="absolute inset-0 bg-white/10 border border-white/20 rounded-xl backdrop-blur-md"
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center gap-2 text-sm md:text-base">
-                    <Icon className="w-4 h-4" />
-                    {label}
-                  </span>
+                  <Icon className={`w-4 h-4 ${isActive ? "animate-pulse" : ""}`} />
+                  {label}
                 </button>
               );
             })}
           </div>
+
+          <div className="relative group w-full lg:w-[400px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
+            <input
+              type="text"
+              placeholder="Cari voucher game..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#0a0f16]/80 border border-white/10 text-white pl-12 pr-4 py-3.5 rounded-2xl focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all text-sm md:text-base"
+            />
+          </div>
         </div>
 
-        {/* ── GAMES GRID ── */}
-        <motion.div
-          layout
-          className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-6"
-        >
-          <AnimatePresence>
-            {filteredGames.map((game, idx) => (
-              <motion.div
-                layout
-                key={game.slug}
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.35, delay: Math.min(idx * 0.04, 0.3) }}
-              >
-                <Link href={`/topup/${game.slug}`} prefetch={false}>
-                  <div className="group relative rounded-2xl md:rounded-[2rem] overflow-hidden aspect-[3/4] border border-white/5 bg-[#111823] cursor-pointer shadow-black/50 shadow-lg transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_15px_30px_-10px_rgba(59,130,246,0.3)] hover:border-blue-500/30">
-                    <Image
-                      src={game.img}
-                      alt={game.title}
-                      fill
-                      className="object-cover transition-transform duration-700 group-hover:scale-110 opacity-70 group-hover:opacity-100 mix-blend-screen"
-                      sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 20vw"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-[#0a0f16]/20 to-transparent opacity-90" />
+        {/* ── PREMIUM POSTER GRID ── */}
+        <div className="mt-12 md:mt-20">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-xl md:text-3xl font-black text-white flex items-center gap-3">
+               <Gamepad className="w-6 h-6 md:w-8 md:h-8 text-blue-500" /> Katalog Populer
+            </h3>
+            <div className="h-px flex-1 bg-gradient-to-r from-blue-500/20 to-transparent mx-6 hidden md:block" />
+            <span className="text-slate-500 font-bold text-sm hidden md:block">
+               Menampilkan <span className="text-white">{filteredGames.length}</span> Judul
+            </span>
+          </div>
 
-                    {/* Title Box */}
-                    <div className="absolute bottom-2 md:bottom-4 inset-x-2 md:inset-x-4 z-10">
-                      <div className="bg-[#111823]/60 backdrop-blur-md border border-white/10 rounded-xl md:rounded-2xl p-2 md:p-3 group-hover:-translate-y-1 transition-transform duration-500">
-                        <h3 className="font-bold text-white leading-tight mb-1 text-[11px] sm:text-xs md:text-base truncate">
-                          {game.title}
-                        </h3>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] md:text-xs font-bold text-blue-400 bg-blue-500/10 px-1.5 md:px-2 py-0.5 rounded-md flex items-center gap-1 border border-blue-500/20">
-                            <Zap className="w-2.5 h-2.5 md:w-3 md:h-3 shrink-0" /> Instan
-                          </span>
-                          <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-blue-500 group-hover:shadow-[0_0_10px_rgba(59,130,246,0.5)] transition-all shrink-0">
-                            <ChevronRight className="w-3 h-3 text-white" />
-                          </div>
+          <motion.div
+            layout
+            className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-6 lg:gap-8"
+          >
+            <AnimatePresence mode="popLayout">
+              {filteredGames.map((game, idx) => (
+                <motion.div
+                  key={game.slug}
+                  layout
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.4, delay: Math.min(idx * 0.05, 0.4) }}
+                >
+                  <Link href={`/topup/${game.slug}`} className="block group">
+                    <div className="relative aspect-[3/4] rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden bg-[#111823] border border-white/[0.03] shadow-2xl transition-all duration-500 group-hover:-translate-y-3 group-hover:shadow-[0_20px_40px_-10px_rgba(59,130,246,0.3)] group-hover:border-blue-500/30">
+                      
+                      {/* Base Image or Placeholder */}
+                      {game.img ? (
+                        <Image
+                          src={game.img}
+                          alt={game.title}
+                          fill
+                          className="object-cover transition-transform duration-1000 group-hover:scale-110"
+                          sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 20vw"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#111823] to-[#0a0f16]">
+                           <ImageIcon className="w-10 h-10 text-slate-800 mb-2 opacity-50" />
+                           <span className="text-[10px] text-slate-700 font-black uppercase tracking-widest text-center px-4">Missing Cover</span>
+                        </div>
+                      )}
+
+                      {/* Overlays */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-[#0a0f16]/10 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-40" />
+                      
+                      {/* Glowing border effect on hover */}
+                      <div className="absolute inset-0 border-2 border-blue-500/0 group-hover:border-blue-500/20 rounded-[inherit] transition-all duration-500" />
+                      
+                      {/* Glass Info Box */}
+                      <div className="absolute bottom-0 inset-x-0 p-3 md:p-5 z-20">
+                        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-[1.5rem] p-3 md:p-4 group-hover:-translate-y-1 transition-transform duration-500">
+                           <h4 className="text-white font-black text-[11px] sm:text-sm md:text-base truncate mb-1 leading-tight group-hover:text-blue-400 transition-colors">
+                              {game.title}
+                           </h4>
+                           <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1 text-blue-400">
+                                 <Zap className="w-3 h-3 md:w-3.5 md:h-3.5 fill-blue-400/20" />
+                                 <span className="text-[9px] md:text-xs font-black uppercase tracking-wider">Fast</span>
+                              </div>
+                              <ChevronRight className="w-3 h-3 md:w-4 md:h-4 text-white/50 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Hot Badge */}
-                    <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-gradient-to-r from-rose-500 to-red-600 px-2 py-0.5 rounded-full border border-red-400/30 shadow-md shadow-red-500/30 translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500 z-10 flex items-center gap-1">
-                      <Flame className="w-2.5 h-2.5 text-white animate-pulse" />
-                      <span className="text-[8px] md:text-[10px] uppercase font-black tracking-widest text-white">Hot</span>
+                      {/* Hot Badge */}
+                      {game.isPopular && (
+                        <div className="absolute top-4 left-4 z-30">
+                           <div className="bg-rose-600/90 text-white text-[10px] font-black px-3 py-1 rounded-full border border-rose-400/40 shadow-lg shadow-rose-900/40 flex items-center gap-1 animate-pulse">
+                              <Flame className="w-3 h-3" /> HOT
+                           </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
-
-        {/* Empty State */}
-        {filteredGames.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="py-24 text-center bg-[#111823]/50 rounded-3xl border border-white/5 mt-8"
-          >
-            <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Search className="w-10 h-10 text-slate-500" />
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Game tidak ditemukan</h2>
-            <p className="text-slate-400">Coba kata kunci lain, atau pilih kategori "Semua".</p>
-            <button
-              onClick={() => { setSearchQuery(""); setActiveTab("Semua"); }}
-              className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-500 transition-colors text-sm"
-            >
-              Reset Filter
-            </button>
+                  </Link>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </motion.div>
-        )}
-      </main>
 
-      {/* ── TRUST BADGES ── */}
-      <section className="container mx-auto px-4 max-w-7xl mt-24 mb-10">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Empty State */}
+          {filteredGames.length === 0 && (
+            <div className="py-32 text-center bg-[#111823]/30 rounded-[3rem] border border-white/5">
+               <Search className="w-16 h-16 text-slate-800 mx-auto mb-4" />
+               <h3 className="text-2xl font-bold text-white mb-2">Game tidak ditemukan</h3>
+               <p className="text-slate-500 mb-6">Mungkin kata kuncinya salah? Coba hapus filter pencarian.</p>
+               <button 
+                  onClick={() => setSearchQuery("")}
+                  className="px-8 py-3 bg-white text-black rounded-2xl font-black text-sm hover:scale-105 transition-transform"
+               >
+                  Reset Pencarian
+               </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── TRUST SECTION ── */}
+      <section className="container mx-auto px-4 max-w-7xl mt-40">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {[
-            { icon: ShieldCheck, color: "emerald", title: "Transaksi Aman 100%", desc: "Pembayaran terenkripsi dan ID langsung diproses otomatis ke server resmi game." },
-            { icon: Clock, color: "blue", title: "Proses Secepat Kilat", desc: "Hanya butuh 1-3 detik untuk sistem cerdas kami memverifikasi dan mengirim item." },
-            { icon: Trophy, color: "yellow", title: "Pilihan Top #1 Gamers", desc: "Ribuan gamers telah mempercayakan pengisian saldo bulanannya di EterShop." },
+            { icon: ShieldCheck, color: "blue", title: "Layanan Terpercaya", desc: "Verifikasi otomatis 24/7. Item terkirim aman ke akun resmi." },
+            { icon: Clock, color: "rose", title: "Proses Detik", desc: "Metode pembayaran API memproses top up kamu dalam hitungan detik." },
+            { icon: Trophy, color: "amber", title: "Terbaik & Termurah", desc: "Harga termurah di kelasnya dengan pelayanan yang VIP." },
           ].map(({ icon: Icon, color, title, desc }) => (
-            <div key={title} className={`bg-gradient-to-br from-[#111823] to-[#0a0f16] border border-${color}-500/10 p-6 rounded-3xl flex items-start gap-4 hover:border-${color}-500/30 transition-colors`}>
-              <div className={`p-4 bg-${color}-500/10 rounded-2xl text-${color}-400 shrink-0`}>
-                <Icon className="w-8 h-8" />
-              </div>
-              <div>
-                <h4 className="text-white font-bold text-lg mb-1">{title}</h4>
-                <p className="text-slate-400 text-sm">{desc}</p>
-              </div>
+            <div key={title} className="bg-white/[0.02] border border-white/[0.05] p-8 rounded-[2.5rem] flex flex-col items-center text-center group hover:bg-white/[0.04] transition-colors">
+               <div className={`w-16 h-16 rounded-2xl bg-${color}-500/10 flex items-center justify-center text-${color}-400 mb-6 group-hover:scale-110 transition-transform`}>
+                  <Icon className="w-8 h-8" />
+               </div>
+               <h4 className="text-white font-black text-xl mb-2">{title}</h4>
+               <p className="text-slate-500 leading-relaxed text-sm">{desc}</p>
             </div>
           ))}
         </div>

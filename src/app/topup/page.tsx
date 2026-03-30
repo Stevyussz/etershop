@@ -29,20 +29,26 @@ export const metadata: Metadata = {
 
 export default async function TopupPage() {
   let brands: { brand: string }[] = [];
+  let configs: any[] = [];
+
   try {
+    // 1. Get all active brands from products
     brands = await prisma.topupProduct.findMany({
       where: { isActive: true },
       select: { brand: true },
       distinct: ["brand"],
       orderBy: { brand: "asc" },
     });
-  } catch {
-    // DB unavailable during prerender
+
+    // 2. Get all branding configs
+    configs = await prisma.gameConfig.findMany();
+  } catch (error) {
+    console.error("[TopupPage] Database access failed during prerender:", error);
   }
 
   return (
     <div className="min-h-screen bg-[#0a0f16] text-slate-200">
-      <TopupCatalogClient games={brands} />
+      <TopupCatalogClient games={brands} configs={configs} />
     </div>
   );
 }

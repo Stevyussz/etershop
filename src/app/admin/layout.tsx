@@ -28,8 +28,9 @@ import {
 const NAV_LINKS = [
   { name: "Overview", href: "/admin", icon: LayoutDashboard },
   { name: "Transaksi", href: "/admin/transactions", icon: Receipt },
-  { name: "Daftar Produk", href: "/admin/products", icon: Gamepad2 },
-  { name: "Pengaturan", href: "/admin/settings", icon: Settings },
+  { name: "Branding Game", href: "/admin/games", icon: Gamepad2 },
+  { name: "Daftar Produk", href: "/admin/products", icon: Settings },
+  { name: "Pengaturan Situs", href: "/admin/settings", icon: Settings },
 ];
 
 function SidebarContent({
