@@ -4,7 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { Search, Package, Clock, ShieldCheck, AlertCircle, RefreshCcw, Home, CheckCircle2, ChevronRight, Info, Copy, CheckCheck } from "lucide-react";
+import Script from "next/script";
+import { Search, Package, Clock, ShieldCheck, AlertCircle, RefreshCcw, Home, CheckCircle2, ChevronRight, Info, Copy, CheckCheck, CreditCard } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 
 function TrackOrderContent() {
@@ -76,6 +77,30 @@ function TrackOrderContent() {
      }
      
      return "waiting";
+  };
+
+  const handleResumePayment = () => {
+    if (!orderData?.snapToken) return;
+    
+    // Check if snap is loaded
+    if (typeof (window as any).snap !== "undefined") {
+      (window as any).snap.pay(orderData.snapToken, {
+        onSuccess: function () {
+          fetchOrder(orderData.orderId); // Auto-refresh on success
+        },
+        onPending: function () {
+          alert("Pembayaran Anda sedang diproses. Silakan tunggu beberapa saat.");
+        },
+        onError: function () {
+          alert("Terjadi kesalahan saat memproses pembayaran. Silakan coba lagi.");
+        },
+        onClose: function () {
+          alert("Anda menutup halaman pembayaran sebelum menyelesaikannya.");
+        }
+      });
+    } else {
+      alert("Sistem pembayaran sedang memuat, silakan tunggu sebentar dan coba lagi.");
+    }
   };
 
   return (
@@ -262,17 +287,41 @@ function TrackOrderContent() {
 
                   {/* Pending Help Context */}
                   {orderData.status === 'PENDING' && (
-                    <div className="mt-8 bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl flex items-start gap-3">
-                       <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
-                       <p className="text-sm text-blue-200/80 leading-relaxed font-medium">
-                         Sistem sedang menunggu Anda menyelesaikan pembayaran. Jika sudah bayar, status ini akan berubah ke <strong className="text-white">Diproses</strong> secara otomatis dalam beberapa menit.
-                       </p>
+                    <div className="mt-8 bg-blue-500/10 border border-blue-500/20 p-5 rounded-3xl flex flex-col md:flex-row items-center gap-5 justify-between">
+                       <div className="flex items-start gap-4">
+                         <div className="bg-blue-500/20 p-2 rounded-xl shrink-0 text-blue-400">
+                           <Info className="w-6 h-6" />
+                         </div>
+                         <div>
+                           <p className="text-white font-bold text-lg mb-1">Menunggu Pembayaran</p>
+                           <p className="text-sm text-slate-400 leading-relaxed max-w-lg">
+                             Sistem sedang menunggu Anda menyelesaikan pembayaran. Jika pembayaran sukses, status pesanan akan diproses otomatis ke Digiflazz dalam hitungan detik.
+                           </p>
+                         </div>
+                       </div>
+                       
+                       {orderData.snapToken && (
+                         <button
+                           onClick={handleResumePayment}
+                           className="w-full md:w-auto mt-2 md:mt-0 whitespace-nowrap bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/25 flex items-center justify-center gap-2"
+                         >
+                           <CreditCard className="w-5 h-5" />
+                           Lanjutkan Pembayaran
+                         </button>
+                       )}
                     </div>
                   )}
 
               </motion.div>
             )}
          </AnimatePresence>
+
+         {/* Midtrans Snap Script globally enabled for this page */}
+         <Script 
+           src="https://app.midtrans.com/snap/snap.js" 
+           data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY} 
+           strategy="lazyOnload" 
+         />
 
          <div className="mt-10">
             <Link href="/" className="text-slate-400 hover:text-white font-bold flex items-center gap-2 transition-colors">

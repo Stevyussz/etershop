@@ -35,8 +35,7 @@ export async function GET(req: NextRequest) {
     // ── Database Lookup ───────────────────────────────────
     const transaction = await prisma.topupTransaction.findUnique({
       where: { orderId },
-      // Explicitly select only customer-safe fields.
-      // NEVER expose: snapToken, cost, id (internal MongoDB ID)
+      // Select customer-safe fields. We ONLY expose snapToken if the status is still PENDING.
       select: {
         orderId: true,
         gameId: true,
@@ -44,7 +43,8 @@ export async function GET(req: NextRequest) {
         productName: true,
         price: true,
         status: true,
-        digiflazzNote: true, // SN or error message — useful for the customer's "proof of delivery"
+        digiflazzNote: true, // SN or error message
+        snapToken: true, // Needed for resume payment
         createdAt: true,
         updatedAt: true,
       },
@@ -55,6 +55,11 @@ export async function GET(req: NextRequest) {
         { error: "Pesanan tidak ditemukan. Periksa kembali Order ID Anda." },
         { status: 404 }
       );
+    }
+
+    // Mask snapToken if it's no longer pending (Security improvement)
+    if (transaction.status !== "PENDING") {
+      transaction.snapToken = null;
     }
 
     return NextResponse.json({ success: true, data: transaction });
