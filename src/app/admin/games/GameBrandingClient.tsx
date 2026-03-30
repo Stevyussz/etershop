@@ -181,10 +181,10 @@ export default function GameBrandingClient({ initialBrands }: { initialBrands: a
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Display Title */}
+                    {/* Custom Title */}
                     <div>
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5 ml-1">
-                        Judul Tampilan
+                        Judul Kustom (Opsional)
                       </label>
                       <input 
                         type="text"
@@ -193,10 +193,10 @@ export default function GameBrandingClient({ initialBrands }: { initialBrands: a
                           ...editingBrand,
                           config: { ...(editingBrand.config || {}), title: e.target.value }
                         })}
-                        placeholder="Contoh: Mobile Legends: Bang Bang"
+                        placeholder={`Default: ${editingBrand.brand}`}
                         className="w-full bg-[#0a0f16] border border-white/5 text-white p-3.5 rounded-xl focus:border-blue-500 focus:outline-none"
-                        required
                       />
+                      <p className="text-[9px] text-slate-600 mt-1 ml-1">Kosongkan untuk menggunakan nama brand asli.</p>
                     </div>
 
                     {/* Category */}
