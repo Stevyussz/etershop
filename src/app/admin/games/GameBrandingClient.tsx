@@ -94,6 +94,7 @@ export default function GameBrandingClient({ initialBrands }: { initialBrands: a
                     src={config.imageUrl!} 
                     alt={item.brand}
                     fill
+                    unoptimized={true}
                     className="object-cover transition-transform duration-700 group-hover:scale-110"
                   />
                 ) : (

@@ -227,16 +227,21 @@ export default function ProductDashboardClient({ products }: { products: Product
                 return (
                   <tr
                     key={p.id}
-                    className={`transition-colors group ${p.isActive ? "hover:bg-white/[0.03]" : "opacity-40 hover:opacity-60"}`}
+                    className={`transition-colors group ${p.isActive ? "hover:bg-white/[0.03]" : "opacity-60 bg-white/[0.01]"}`}
                   >
                     <td className="py-3 px-5">
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full block ${
-                          p.isActive
-                            ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"
-                            : "bg-slate-600"
-                        }`}
-                      />
+                      <button
+                        onClick={() => handleToggle(p.id, p.isActive)}
+                        disabled={isPending}
+                        title={p.isActive ? "Klik untuk nonaktifkan" : "Klik untuk aktifkan"}
+                        className={`transition-all duration-300 ${isPending ? "opacity-30 cursor-wait" : "hover:scale-110"}`}
+                      >
+                        {p.isActive ? (
+                          <ToggleRight className="w-6 h-6 text-emerald-500 fill-emerald-500/10" />
+                        ) : (
+                          <ToggleLeft className="w-6 h-6 text-slate-600" />
+                        )}
+                      </button>
                     </td>
                     <td className="py-3 px-5 text-slate-400 font-mono text-xs font-bold">{p.sku}</td>
                     <td className="py-3 px-5">

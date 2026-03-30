@@ -13,13 +13,11 @@ import { revalidatePath } from "next/cache";
 import { getDigiflazzPriceList, type DigiflazzProduct } from "@/lib/digiflazz";
 import { calculateSellingPrice } from "@/lib/utils";
 
-/** Keywords used to identify game-related products from Digiflazz. */
-const GAME_KEYWORDS = ["game", "voucher", "mobile", "pc", "topup", "hiburan"] as const;
-
-/**
- * The chunk size for batched database upserts.
- */
-const DB_UPSERT_CHUNK_SIZE = 200;
+/** Keywords to strictly EXCLUDE from the sync (Data packages, Utilities, etc.) */
+const EXCLUDED_KEYWORDS = [
+  "internet", "data", "pulsa", "pln", "token", "pasca", "pdam", 
+  "bpjs", "telkom", "tv", "gas", "e-money", "pajak", "grab", "gojek"
+] as const;
 
 /**
  * Transforms a raw Digiflazz product object into the shape needed by our database.
@@ -37,7 +35,7 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct) {
       type: p.type,
       originalPrice,
       price: sellingPrice,
-      isActive: true,
+      // Note: We don't overwrite isActive on update to preserve manual deactivation settings
     },
     create: {
       sku: p.buyer_sku_code,
@@ -54,13 +52,7 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct) {
 
 /**
  * Filters the raw Digiflazz product list to only include active game products.
- *
- * A product is included if:
- * 1. Its category or type contains any of the GAME_KEYWORDS (case-insensitive).
- * 2. Its seller_product_status is true (Digiflazz has stock).
- *
- * @param products - The full raw product list from Digiflazz.
- * @returns Filtered array of active game products.
+ * Includes exclusion logic to prevent "leaking" of data/internet packages.
  */
 function filterGameProducts(products: DigiflazzProduct[]): DigiflazzProduct[] {
   console.log(`[Admin] Filtering ${products.length} products from Digiflazz...`);
@@ -70,57 +62,59 @@ function filterGameProducts(products: DigiflazzProduct[]): DigiflazzProduct[] {
     const type = p.type.toLowerCase();
     const name = p.product_name.toLowerCase();
 
-    // Check if category or type contains "game" or "voucher"
+    // 1. Check for exclusions (Blacklist)
+    const isExcluded = EXCLUDED_KEYWORDS.some(kw => 
+      category.includes(kw) || type.includes(kw) || name.includes(kw)
+    );
+    if (isExcluded) return false;
+
+    // 2. Check for inclusions (Whitelist)
     const isGameRelated = 
       GAME_KEYWORDS.some(kw => category.includes(kw) || type.includes(kw)) ||
-      (category === "hiburan"); // Hiburan is sometimes used for game vouchers
+      (category === "hiburan");
 
     return isGameRelated && p.seller_product_status === true;
   });
 
   console.log(`[Admin] Found ${filtered.length} matching game products.`);
-  if (filtered.length > 0) {
-    // Log unique categories found for debugging
-    const categories = Array.from(new Set(filtered.map(p => p.category)));
-    console.log(`[Admin] Categories found:`, categories.join(", "));
-    
-    // Log unique brands found
-    const brands = Array.from(new Set(filtered.map(p => p.brand)));
-    console.log(`[Admin] Brands found (${brands.length}):`, brands.slice(0, 10).join(", "), brands.length > 10 ? "..." : "");
-  }
-
   return filtered;
 }
 
 /**
+ * Toggles the isActive status of a single product.
+ * Used for manual manual deactivation from the Admin dashboard.
+ */
+export async function toggleProductStatus(id: string, currentStatus: boolean) {
+  try {
+    await prisma.topupProduct.update({
+      where: { id },
+      data: { isActive: !currentStatus }
+    });
+    
+    revalidatePath("/admin/products");
+    revalidatePath("/topup");
+    return { success: true };
+  } catch (error: any) {
+    console.error("[Admin] Toggle status failed:", error);
+    return { success: false, message: error.message };
+  }
+}
+
+/**
  * Main Server Action: Synchronizes product data from Digiflazz to our MongoDB database.
- *
- * Flow:
- * 1. Fetches the full price list from Digiflazz API.
- * 2. Filters to only active game products.
- * 3. Upserts each product in batches to avoid memory limits.
- * 4. Deactivates any products that are no longer in the Digiflazz list.
- * 5. Revalidates the product and storefront pages.
- *
- * @returns An object with `success` boolean and a `message` string for the UI toast.
  */
 export async function runDigiflazzSync(): Promise<{ success: boolean; message: string }> {
   try {
-    // Step 1: Fetch raw data from Digiflazz (may throw on API error)
     const allProducts = await getDigiflazzPriceList();
-
-    // Step 2: Filter to game products
     const gameProducts = filterGameProducts(allProducts);
 
     if (gameProducts.length === 0) {
       return {
         success: false,
-        message:
-          "Tidak ada produk game yang ditemukan. Pastikan akun Digiflazz sudah terverifikasi dan produk sudah ditambahkan di dashboard Digiflazz.",
+        message: "Tidak ada produk game yang ditemukan. Filter terlalu ketat atau data API kosong.",
       };
     }
 
-    // Step 3: Build and execute upsert operations in chunks
     const upsertOperations = gameProducts.map((p) => {
       const mapped = mapDigiflazzProductForDB(p);
       return prisma.topupProduct.upsert(mapped);
@@ -133,9 +127,7 @@ export async function runDigiflazzSync(): Promise<{ success: boolean; message: s
       syncedCount += chunk.length;
     }
 
-    // Step 4: Deactivate products that no longer exist in the Digiflazz response
-    // This handles products that Digiflazz has removed or that we no longer sell.
-    // Step 4: Deactivate products that were not in this sync batch
+    // Deactivate products that no longer exist in the sync batch
     const activeSkus = gameProducts.map((p) => p.buyer_sku_code);
     const deactivatedResult = await prisma.topupProduct.updateMany({
       where: {
@@ -145,14 +137,13 @@ export async function runDigiflazzSync(): Promise<{ success: boolean; message: s
       data: { isActive: false },
     });
 
-    // Step 5: Revalidate all affected pages so the UI reflects the new data immediately
     revalidatePath("/admin/products");
     revalidatePath("/topup");
     revalidatePath("/");
 
     return {
       success: true,
-      message: `✅ Berhasil! ${syncedCount} produk disinkronisasi. ${deactivatedResult.count} produk lama dinonaktifkan.`,
+      message: `✅ Berhasil! ${syncedCount} produk disinkronisasi. ${deactivatedResult.count} produk lama dinonaktifkan secara sistem.`,
     };
   } catch (error: any) {
     console.error("[Admin] Digiflazz sync failed:", error);

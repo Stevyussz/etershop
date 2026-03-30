@@ -101,6 +101,29 @@ export default function CheckoutClient({ products, brand }: CheckoutClientProps)
     [products, selectedSku]
   );
 
+  /** Groups products into 'Top Up' and 'Membership/Paket' */
+  const groupedProducts = useMemo(() => {
+    const groups: { label: string; items: TopupProduct[]; icon: any }[] = [
+      { label: "Top Up Game", items: [], icon: Zap },
+      { label: "Membership & Paket", items: [], icon: Ticket },
+    ];
+
+    const membershipKws = ["weekly", "monthly", "pass", "membership", "paket", "bundle", "card", "season"];
+
+    products.forEach((p: TopupProduct) => {
+      const name = p.name.toLowerCase();
+      const sku = p.sku.toLowerCase();
+      const isMembership = membershipKws.some(kw => name.includes(kw) || sku.includes(kw));
+      if (isMembership) {
+        groups[1].items.push(p);
+      } else {
+        groups[0].items.push(p);
+      }
+    });
+
+    return groups.filter(g => g.items.length > 0);
+  }, [products]);
+
   useEffect(() => {
     const names = ["Andi", "Rizky", "Budi", "Sarah", "Dimas", "Alya", "Kevin"];
     let isMounted = true;
@@ -309,7 +332,7 @@ export default function CheckoutClient({ products, brand }: CheckoutClientProps)
                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
                className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-8 shadow-xl"
              >
-               <div className="flex items-center justify-between mb-6">
+               <div className="flex items-center justify-between mb-8">
                  <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-fuchsia-500 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg shadow-fuchsia-500/20">
                       2
@@ -317,38 +340,52 @@ export default function CheckoutClient({ products, brand }: CheckoutClientProps)
                     <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Pilih Nominal</h2>
                  </div>
                  <div className="hidden sm:flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs px-2.5 py-1 rounded-full font-bold">
-                    <Flame className="w-3.5 h-3.5" /> Diskon
+                    <Flame className="w-3.5 h-3.5" /> Terlaris
                  </div>
                </div>
                
-               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-                 {products.map((p, idx) => {
-                   const isSelected = selectedSku === p.sku;
-                   const isHot = idx === 1 || idx === 3;
+               <div className="space-y-10">
+                 {groupedProducts.map((group: { label: string; items: TopupProduct[]; icon: any }) => {
+                   const GroupIcon = group.icon;
                    return (
-                     <button
-                       key={p.sku}
-                       onClick={() => setSelectedSku(p.sku)}
-                       className={`relative p-4 md:p-5 text-left flex flex-col justify-center transition-all duration-200 rounded-2xl border overflow-hidden bg-[#0a0f16] group ${
-                         isSelected 
-                           ? "border-fuchsia-400/80 bg-fuchsia-500/5 ring-1 ring-fuchsia-400/50 shadow-[0_0_15px_rgba(217,70,239,0.15)]" 
-                           : "border-white/5 hover:border-white/20 hover:bg-[#1a2333]"
-                       }`}
-                     >
-                       {isHot && !isSelected && (
-                          <span className="absolute -right-6 top-2 bg-gradient-to-r from-rose-600 to-red-600 text-[8px] font-black tracking-widest text-white px-8 py-0.5 rotate-45 z-10 shadow-md">HOT</span>
-                       )}
+                     <div key={group.label} className="space-y-4">
+                       <div className="flex items-center gap-2 text-slate-400 mb-4 ml-1">
+                         <GroupIcon className="w-4 h-4 text-fuchsia-500" />
+                         <h3 className="text-sm font-black uppercase tracking-widest">{group.label}</h3>
+                       </div>
                        
-                       <span className="text-white font-bold text-sm md:text-base mb-1 z-10">{p.name}</span>
-                       <span className={`font-semibold z-10 text-xs md:text-sm transition-colors ${isSelected ? 'text-fuchsia-400' : 'text-slate-400'}`}>
-                         {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(p.price)}
-                       </span>
-                       {isSelected && (
-                          <div className="absolute top-3 right-3 bg-fuchsia-500 rounded-full p-0.5 z-10 hidden sm:block">
-                             <CheckCircle2 className="w-4 h-4 text-white" />
-                          </div>
-                       )}
-                     </button>
+                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+                         {group.items.map((p: TopupProduct, idx: number) => {
+                           const isSelected = selectedSku === p.sku;
+                           const isHot = idx === 0 && group.label === "Top Up Game";
+                           return (
+                             <button
+                               key={p.sku}
+                               onClick={() => setSelectedSku(p.sku)}
+                               className={`relative p-4 md:p-5 text-left flex flex-col justify-center transition-all duration-200 rounded-2xl border overflow-hidden bg-[#0a0f16] group ${
+                                 isSelected 
+                                   ? "border-fuchsia-400/80 bg-fuchsia-500/5 ring-1 ring-fuchsia-400/50 shadow-[0_0_15px_rgba(217,70,239,0.15)]" 
+                                   : "border-white/5 hover:border-white/20 hover:bg-[#1a2333]"
+                               }`}
+                             >
+                               {isHot && !isSelected && (
+                                  <span className="absolute -right-6 top-2 bg-gradient-to-r from-rose-600 to-red-600 text-[8px] font-black tracking-widest text-white px-8 py-0.5 rotate-45 z-10 shadow-md">HOT</span>
+                               )}
+                               
+                               <span className="text-white font-bold text-sm md:text-base mb-1 z-10 leading-tight">{p.name}</span>
+                               <span className={`font-semibold z-10 text-xs md:text-sm transition-colors ${isSelected ? 'text-fuchsia-400' : 'text-slate-400'}`}>
+                                 {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(p.price)}
+                               </span>
+                               {isSelected && (
+                                  <div className="absolute top-3 right-3 bg-fuchsia-500 rounded-full p-0.5 z-10 hidden sm:block">
+                                     <CheckCircle2 className="w-4 h-4 text-white" />
+                                  </div>
+                               )}
+                             </button>
+                           )
+                         })}
+                       </div>
+                     </div>
                    )
                  })}
                </div>
