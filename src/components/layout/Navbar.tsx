@@ -5,12 +5,14 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { CartSheet } from '@/components/cart/CartSheet'
-import { Menu, X, Home, LayoutGrid, Users, Search, Heart } from 'lucide-react'
+import { Menu, X, Home, LayoutGrid, Users, Search, Heart, Zap } from 'lucide-react'
 import { useWishlistStore } from '@/lib/wishlistStore'
 
 const navLinks = [
   { href: '/', label: 'Beranda', icon: Home },
+  { href: '/topup', label: 'Top Up', icon: Zap },
   { href: '/shop', label: 'Katalog', icon: LayoutGrid },
+  { href: '/topup/track', label: 'Lacak Pesanan', icon: Search },
   { href: 'https://dsc.gg/etershop', label: 'Komunitas', icon: Users, external: true },
 ]
 
