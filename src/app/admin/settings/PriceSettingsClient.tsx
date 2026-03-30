@@ -7,11 +7,11 @@
 
 import { useState, useTransition } from "react";
 import { updatePriceSettings } from "./price-actions";
-import { runDigiflazzSync } from "../products/actions";
+import { applyGlobalMarkups } from "../products/actions";
 import { 
   TrendingUp, Percent, Coins, Save, 
   RefreshCcw, CheckCircle2, ShieldAlert,
-  Info, Loader2, Zap
+  Info, Loader2, Zap, LayoutGrid
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -22,7 +22,7 @@ interface Settings {
   gameValidatorUrl?: string;
 }
 
-export default function PriceSettingsClient({ initialSettings }: { initialSettings: Settings | null }) {
+export default function PriceSettingsClient({ initialSettings, brands = [] }: { initialSettings: Settings | null, brands?: string[] }) {
   // Clean initialSettings from MongoDB technical fields before setting state
   const cleanInitial = initialSettings ? (() => {
     const { id, createdAt, updatedAt, ...others } = initialSettings as any;
@@ -35,6 +35,7 @@ export default function PriceSettingsClient({ initialSettings }: { initialSettin
     globalMarkupFixed: 2000,
     gameValidatorUrl: "https://api.vany.my.id/api/game/"
   });
+  const [selectedBrand, setSelectedBrand] = useState<string>("ALL");
   const [isPending, startTransition] = useTransition();
   const [isSyncPending, startSyncTransition] = useTransition();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -57,13 +58,15 @@ export default function PriceSettingsClient({ initialSettings }: { initialSettin
   };
 
   const handleApplyToAll = () => {
-    if (!confirm("Ini akan menghitung ulang dan memperbarui harga SEMUA produk di database. Proses ini mungkin memakan waktu beberapa saat. Lanjutkan?")) return;
+    const brandLabel = selectedBrand === "ALL" ? "SEMUA produk" : `produk game ${selectedBrand}`;
+    if (!confirm(`Ini akan menghitung ulang dan memperbarui harga ${brandLabel} di database secara instan menggunakan profit "${settings.globalMarkupType}". Lanjutkan?`)) return;
     
     startSyncTransition(async () => {
-      // First save settings to be sure
+      // First save settings to be sure the update uses latest values
       await updatePriceSettings(settings);
-      // Then run sync
-      const res = await runDigiflazzSync();
+      
+      // Then run the direct database-only update (MUCH faster)
+      const res = await applyGlobalMarkups(selectedBrand === "ALL" ? undefined : selectedBrand);
       setToast({ msg: res.message, type: res.success ? "success" : "error" });
       setTimeout(() => setToast(null), 5000);
     });
@@ -194,22 +197,41 @@ export default function PriceSettingsClient({ initialSettings }: { initialSettin
 
         {/* APPLY PANEL */}
         <div className="space-y-6">
-          <div className="bg-fuchsia-600/5 border border-fuchsia-500/20 rounded-3xl p-8 space-y-6">
+          <div className="bg-fuchsia-600/5 border border-fuchsia-500/20 rounded-3xl p-8 space-y-6 h-full">
             <div className="w-12 h-12 rounded-2xl bg-fuchsia-500/10 flex items-center justify-center">
                <RefreshCcw className="w-6 h-6 text-fuchsia-400" />
             </div>
             <div>
               <h3 className="text-lg font-black text-white">Terapkan Massal</h3>
               <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-                Klik tombol di bawah untuk **memperbarui harga semua produk** di database menggunakan pengaturan baru ini sekarang juga.
+                Pilih target produk dan klik tombol di bawah untuk **memperbarui harga** di database secara instan.
               </p>
             </div>
+
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-600 ml-1">Target Produk</label>
+              <div className="relative">
+                <LayoutGrid className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <select 
+                  value={selectedBrand}
+                  onChange={(e) => setSelectedBrand(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-white focus:outline-none focus:border-fuchsia-500/50 appearance-none cursor-pointer"
+                >
+                  <option value="ALL" className="bg-[#1a1a1a]">-- SEMUA PRODUK --</option>
+                  {brands.map(b => (
+                    <option key={b} value={b} className="bg-[#1a1a1a]">{b}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <button 
               onClick={handleApplyToAll}
               disabled={isSyncPending}
               className="w-full bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-50 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-xl shadow-fuchsia-600/20"
             >
-              {isSyncPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCcw className="w-5 h-5" />} Terapkan ke Semua
+              {isSyncPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCcw className="w-5 h-5" />} 
+              {selectedBrand === "ALL" ? "Terapkan ke Semua" : `Update ${selectedBrand}`}
             </button>
           </div>
         </div>

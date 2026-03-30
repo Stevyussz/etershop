@@ -139,6 +139,62 @@ export async function toggleProductStatus(id: string, currentStatus: boolean) {
 }
 
 /**
+ * Specialized Action: Recalculates product prices based on current global markups
+ * WITHOUT syncing from Digiflazz. This is much faster and more reliable.
+ */
+export async function applyGlobalMarkups(brand?: string): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log(`[Admin Pricing] Starting price recalculation (Filter: ${brand || "All"})...`);
+
+    // 1. Fetch current settings
+    const settings = await prisma.siteSettings.findUnique({ where: { id: "main" } }) as any;
+    if (!settings) throw new Error("Pengaturan harga belum dikonfigurasi.");
+
+    // 2. Fetch products to update
+    const whereClause: any = brand ? { brand } : {};
+    const productsToUpdate = await prisma.topupProduct.findMany({
+      where: whereClause,
+      select: { id: true, originalPrice: true }
+    });
+
+    if (productsToUpdate.length === 0) {
+      return { success: true, message: "Tidak ada produk yang perlu diperbarui." };
+    }
+
+    console.log(`[Admin Pricing] Updating ${productsToUpdate.length} products...`);
+
+    // 3. Batched updates to avoid DB lock/timeout
+    let updatedCount = 0;
+    for (let i = 0; i < productsToUpdate.length; i += DB_UPSERT_CHUNK_SIZE) {
+      const chunk = productsToUpdate.slice(i, i + DB_UPSERT_CHUNK_SIZE);
+      const updateOps = chunk.map((p) => {
+        const newPrice = calculateDynamicPrice(p.originalPrice, settings);
+        return prisma.topupProduct.update({
+          where: { id: p.id },
+          data: { price: newPrice }
+        });
+      });
+
+      await prisma.$transaction(updateOps);
+      updatedCount += chunk.length;
+    }
+
+    revalidatePath("/admin/products");
+    revalidatePath("/admin/settings");
+    revalidatePath("/topup");
+    revalidatePath("/");
+
+    return { 
+      success: true, 
+      message: `✅ Berhasil menerapkan harga baru ke ${updatedCount} produk${brand ? ` game ${brand}` : ""}.` 
+    };
+  } catch (error: any) {
+    console.error("[Admin Pricing] Error applying markups:", error);
+    return { success: false, message: `Gagal menerapkan harga: ${error.message}` };
+  }
+}
+
+/**
  * Main Server Action: Synchronizes product data from Digiflazz to our MongoDB database.
  */
 export async function runDigiflazzSync(): Promise<{ success: boolean; message: string }> {
