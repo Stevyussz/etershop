@@ -28,17 +28,17 @@ export const metadata: Metadata = {
 };
 
 export default async function TopupPage() {
-  /**
-   * Fetch only distinct brand names for active products.
-   * The actual package/nominal data is fetched per-brand on the individual game page.
-   * This keeps the catalog page lean and fast.
-   */
-  const brands = await prisma.topupProduct.findMany({
-    where: { isActive: true },
-    select: { brand: true },
-    distinct: ["brand"],
-    orderBy: { brand: "asc" },
-  });
+  let brands: { brand: string }[] = [];
+  try {
+    brands = await prisma.topupProduct.findMany({
+      where: { isActive: true },
+      select: { brand: true },
+      distinct: ["brand"],
+      orderBy: { brand: "asc" },
+    });
+  } catch {
+    // DB unavailable during prerender
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0f16] text-slate-200">

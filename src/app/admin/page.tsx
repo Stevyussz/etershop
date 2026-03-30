@@ -34,39 +34,63 @@ export default async function AdminOverview() {
   sevenDaysAgo.setDate(today.getDate() - 6);
   sevenDaysAgo.setHours(0, 0, 0, 0);
 
-  const [statsSuccess, statsAll, totalOrders, pendingOrders, activeProducts, recentOrders, digiflazzBalance, last7DaysTx, topProducts] =
-    await Promise.all([
-      // Revenue from successful transactions
-      prisma.topupTransaction.aggregate({
-        _sum: { price: true, cost: true },
-        where: { status: "SUCCESS" },
-      }),
-      // Count of all statuses
-      prisma.topupTransaction.groupBy({
-        by: ["status"],
-        _count: { id: true },
-      }),
-      prisma.topupTransaction.count({ where: { status: "SUCCESS" } }),
-      prisma.topupTransaction.count({ where: { status: { in: ["PENDING", "PAID"] } } }),
-      prisma.topupProduct.count({ where: { isActive: true } }),
-      // Last 6 transactions for the table
-      prisma.topupTransaction.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
-      getDigiflazzBalance(),
-      // Last 7 days of successful transactions for the chart
-      prisma.topupTransaction.findMany({
-        where: { status: "SUCCESS", createdAt: { gte: sevenDaysAgo } },
-        select: { price: true, createdAt: true },
-      }),
-      // Top 5 products by revenue
-      prisma.topupTransaction.groupBy({
-        by: ["productName"],
-        where: { status: "SUCCESS" },
-        _sum: { price: true },
-        _count: { id: true },
-        orderBy: { _sum: { price: "desc" } },
-        take: 5,
-      }),
-    ]);
+  let statsSuccess: any = { _sum: { price: 0, cost: 0 } };
+  let statsAll: any[] = [];
+  let totalOrders = 0;
+  let pendingOrders = 0;
+  let activeProducts = 0;
+  let recentOrders: any[] = [];
+  let digiflazzBalance: number | null = null;
+  let last7DaysTx: any[] = [];
+  let topProducts: any[] = [];
+
+  try {
+    const [resSuccess, resAll, resTotal, resPending, resActive, resRecent, resBalance, res7Days, resTop] =
+      await Promise.all([
+        // Revenue from successful transactions
+        prisma.topupTransaction.aggregate({
+          _sum: { price: true, cost: true },
+          where: { status: "SUCCESS" },
+        }),
+        // Count of all statuses
+        prisma.topupTransaction.groupBy({
+          by: ["status"],
+          _count: { id: true },
+        }),
+        prisma.topupTransaction.count({ where: { status: "SUCCESS" } }),
+        prisma.topupTransaction.count({ where: { status: { in: ["PENDING", "PAID"] } } }),
+        prisma.topupProduct.count({ where: { isActive: true } }),
+        // Last 6 transactions for the table
+        prisma.topupTransaction.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
+        getDigiflazzBalance(),
+        // Last 7 days of successful transactions for the chart
+        prisma.topupTransaction.findMany({
+          where: { status: "SUCCESS", createdAt: { gte: sevenDaysAgo } },
+          select: { price: true, createdAt: true },
+        }),
+        // Top 5 products by revenue
+        prisma.topupTransaction.groupBy({
+          by: ["productName"],
+          where: { status: "SUCCESS" },
+          _sum: { price: true },
+          _count: { id: true },
+          orderBy: { _sum: { price: "desc" } },
+          take: 5,
+        }),
+      ]);
+
+    statsSuccess = resSuccess;
+    statsAll = resAll;
+    totalOrders = resTotal;
+    pendingOrders = resPending;
+    activeProducts = resActive;
+    recentOrders = resRecent;
+    digiflazzBalance = resBalance;
+    last7DaysTx = res7Days;
+    topProducts = resTop;
+  } catch (error) {
+    console.error("[AdminOverview] DB access failed during prerender:", error);
+  }
 
   const totalRevenue = statsSuccess._sum?.price ?? 0;
   const totalCost = statsSuccess._sum?.cost ?? 0;

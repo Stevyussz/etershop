@@ -23,27 +23,32 @@ export default async function ShopPage(props: {
   const minPrice = searchParams.min ? parseFloat(searchParams.min) : undefined
   const maxPrice = searchParams.max ? parseFloat(searchParams.max) : undefined
 
-  const categories = await prisma.category.findMany({ orderBy: { name: 'asc' } })
-
   const orderBy =
     sort === 'price_asc' ? { price: 'asc' as const } :
     sort === 'price_desc' ? { price: 'desc' as const } :
     sort === 'featured' ? { isFeatured: 'desc' as const } :
     { createdAt: 'desc' as const }
 
-  const products = await prisma.product.findMany({
-    where: {
-      isActive: true,
-      ...(category ? { category: { slug: category } } : {}),
-      ...(minPrice !== undefined || maxPrice !== undefined
-        ? { price: { ...(minPrice !== undefined ? { gte: minPrice } : {}), ...(maxPrice !== undefined ? { lte: maxPrice } : {}) } }
-        : {}),
-    },
-    include: { category: true },
-    orderBy,
-  })
-
-  const activeCategory = categories.find(c => c.slug === category)
+  let categories: any[] = [];
+  let products: any[] = [];
+  let activeCategory: any = undefined;
+  try {
+    categories = await prisma.category.findMany({ orderBy: { name: 'asc' } });
+    products = await prisma.product.findMany({
+      where: {
+        isActive: true,
+        ...(category ? { category: { slug: category } } : {}),
+        ...(minPrice !== undefined || maxPrice !== undefined
+          ? { price: { ...(minPrice !== undefined ? { gte: minPrice } : {}), ...(maxPrice !== undefined ? { lte: maxPrice } : {}) } }
+          : {}),
+      },
+      include: { category: true },
+      orderBy,
+    });
+    activeCategory = categories.find(c => c.slug === category);
+  } catch {
+    // DB unavailable during prerender
+  }
 
   // Build helper to keep existing params when changing one
   function buildHref(overrides: Record<string, string | undefined>) {

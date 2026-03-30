@@ -18,10 +18,15 @@ import { formatDate } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function CategoriesPage() {
-  const categories = await prisma.category.findMany({
-    orderBy: { createdAt: "desc" },
-    include: { _count: { select: { products: true } } },
-  });
+  let categories: any[] = [];
+  try {
+    categories = await prisma.category.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { products: true } } },
+    });
+  } catch {
+    // DB unavailable
+  }
 
   return (
     <div>

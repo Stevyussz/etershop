@@ -10,20 +10,25 @@ export default async function SearchPage(props: {
   const { q } = await props.searchParams
   const query = q?.trim() ?? ''
 
-  const products = query
-    ? await prisma.product.findMany({
-        where: {
-          isActive: true,
-          OR: [
-            { title: { contains: query } },
-            { description: { contains: query } },
-            { category: { name: { contains: query } } },
-          ],
-        },
-        include: { category: true },
-        orderBy: { isFeatured: 'desc' },
-      })
-    : []
+  let products: any[] = [];
+  try {
+    products = query
+      ? await prisma.product.findMany({
+          where: {
+            isActive: true,
+            OR: [
+              { title: { contains: query } },
+              { description: { contains: query } },
+              { category: { name: { contains: query } } },
+            ],
+          },
+          include: { category: true },
+          orderBy: { isFeatured: 'desc' },
+        })
+      : []
+  } catch {
+    // DB unavailable
+  }
 
   return (
     <div className="min-h-[80vh] bg-[#080d18]">

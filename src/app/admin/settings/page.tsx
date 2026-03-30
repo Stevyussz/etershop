@@ -22,7 +22,12 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const settings = await prisma.siteSettings.findUnique({ where: { id: "main" } });
+  let settings = null;
+  try {
+    settings = await prisma.siteSettings.findUnique({ where: { id: "main" } });
+  } catch {
+    // DB unavailable
+  }
 
   // Format datetime-local value accounting for timezone offset
   const countdownFormatted = settings?.countdownEnd

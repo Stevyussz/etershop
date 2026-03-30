@@ -4,18 +4,24 @@ import prisma from '@/lib/prisma'
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://etershop.vercel.app'
 
-  // Get all products
-  const products = await prisma.product.findMany({
-    where: { isActive: true },
-    select: { id: true, updatedAt: true },
-  })
+  let productEntries: MetadataRoute.Sitemap = []
 
-  const productEntries: MetadataRoute.Sitemap = products.map((product) => ({
-    url: `${baseUrl}/product/${product.id}`,
-    lastModified: product.updatedAt,
-    changeFrequency: 'weekly',
-    priority: 0.7,
-  }))
+  try {
+    // Get all products
+    const products = await prisma.product.findMany({
+      where: { isActive: true },
+      select: { id: true, updatedAt: true },
+    })
+
+    productEntries = products.map((product) => ({
+      url: `${baseUrl}/product/${product.id}`,
+      lastModified: product.updatedAt,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    }))
+  } catch {
+    // DB unavailable
+  }
 
   const staticEntries: MetadataRoute.Sitemap = [
     {

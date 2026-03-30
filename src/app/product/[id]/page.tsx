@@ -18,11 +18,16 @@ export const revalidate = 60
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>
 }): Promise<Metadata> {
-  const params = await props.params
-  const product = await prisma.product.findUnique({
-    where: { id: params.id },
-    include: { category: true }
-  })
+  const params = await props.params;
+  let product = null;
+  try {
+    product = await prisma.product.findUnique({
+      where: { id: params.id },
+      include: { category: true }
+    });
+  } catch {
+    // DB unavailable
+  }
 
   if (!product) return { title: 'Produk Tidak Ditemukan' }
 
@@ -47,19 +52,28 @@ export async function generateMetadata(props: {
 export default async function ProductPage(props: {
   params: Promise<{ id: string }>
 }) {
-  const params = await props.params
-  const product = await prisma.product.findUnique({
-    where: { id: params.id },
-    include: { category: true }
-  })
+  const params = await props.params;
+  let product = null;
+  let related: any[] = [];
 
-  if (!product || !product.isActive) notFound()
+  try {
+    product = await prisma.product.findUnique({
+      where: { id: params.id },
+      include: { category: true }
+    });
 
-  const related = await prisma.product.findMany({
-    where: { categoryId: product.categoryId, NOT: { id: product.id }, isActive: true },
-    include: { category: true },
-    take: 3,
-  })
+    if (product && product.isActive) {
+      related = await prisma.product.findMany({
+        where: { categoryId: product.categoryId, NOT: { id: product.id }, isActive: true },
+        include: { category: true },
+        take: 3,
+      });
+    }
+  } catch {
+    // DB unavailable
+  }
+
+  if (!product || !product.isActive) notFound();
 
   const discount = product.originalPrice
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)

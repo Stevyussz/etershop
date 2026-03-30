@@ -14,33 +14,44 @@ import { formatRupiah } from "@/lib/utils";
 export const dynamic = "force-dynamic"; // Always fresh data
 
 export default async function AdminTransactionsPage() {
-  // Fetch all transactions and compute stats in parallel
-  const [transactions, stats] = await Promise.all([
-    prisma.topupTransaction.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 500,
-    }),
-    prisma.topupTransaction.groupBy({
-      by: ["status"],
-      _count: { id: true },
-      _sum: { price: true },
-    }),
-  ]);
-
-  // Compute summary stats from the groupBy result
-  const successStat = stats.find((s) => s.status === "SUCCESS");
-  const pendingStat = stats.find((s) => s.status === "PENDING");
-  const failedStat = stats.find((s) => s.status === "FAILED");
-  const paidStat = stats.find((s) => s.status === "PAID");
-
-  const summaryStats = {
-    totalRevenue: successStat?._sum?.price ?? 0,
-    successCount: successStat?._count?.id ?? 0,
-    pendingCount: (pendingStat?._count?.id ?? 0) + (paidStat?._count?.id ?? 0),
-    failedCount: failedStat?._count?.id ?? 0,
-    totalCount: transactions.length,
-    revenueFormatted: formatRupiah(successStat?._sum?.price ?? 0),
+  let transactions: any[] = [];
+  let summaryStats = {
+    totalRevenue: 0,
+    successCount: 0,
+    pendingCount: 0,
+    failedCount: 0,
+    totalCount: 0,
+    revenueFormatted: formatRupiah(0),
   };
+
+  try {
+    const [txs, stats] = await Promise.all([
+      prisma.topupTransaction.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 500,
+      }),
+      prisma.topupTransaction.groupBy({
+        by: ["status"],
+        _count: { id: true },
+        _sum: { price: true },
+      }),
+    ]);
+    transactions = txs;
+    const successStat = stats.find((s) => s.status === "SUCCESS");
+    const pendingStat = stats.find((s) => s.status === "PENDING");
+    const failedStat = stats.find((s) => s.status === "FAILED");
+    const paidStat = stats.find((s) => s.status === "PAID");
+    summaryStats = {
+      totalRevenue: successStat?._sum?.price ?? 0,
+      successCount: successStat?._count?.id ?? 0,
+      pendingCount: (pendingStat?._count?.id ?? 0) + (paidStat?._count?.id ?? 0),
+      failedCount: failedStat?._count?.id ?? 0,
+      totalCount: txs.length,
+      revenueFormatted: formatRupiah(successStat?._sum?.price ?? 0),
+    };
+  } catch {
+    // DB unavailable
+  }
 
   return (
     <TransactionsClient
