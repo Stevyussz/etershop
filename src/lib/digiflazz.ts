@@ -17,11 +17,39 @@ import { unstable_cache } from "next/cache";
 // Custom fetch wrapper that automatically routes via Fixie proxy if the env proxy URL is set
 async function fetchViaProxy(url: string, options: any) {
   const proxyUrl = process.env.FIXIE_URL;
-  if (proxyUrl) {
-    options.agent = new HttpsProxyAgent(proxyUrl);
-    // console.log("[Fixie] Routing Digiflazz request via Proxy");
+  const isProd = process.env.NODE_ENV === "production";
+
+  // ENFORCEMENT: In production, we MUST use a proxy to keep the IP static and avoid whitelisting issues.
+  if (isProd && !proxyUrl) {
+    throw new Error(
+      "[Digiflazz Proxy] FATAL: FIXIE_URL is missing in Production! Direct request blocked to prevent IP Whitelist errors."
+    );
   }
-  return fetch(url, options);
+
+  // TIMEOUT: Prevent hanging requests by aborting after 30 seconds.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const fetchOptions = { ...options, signal: controller.signal };
+    
+    if (proxyUrl) {
+      fetchOptions.agent = new HttpsProxyAgent(proxyUrl);
+      // console.log(`[Fixie] Routing request to ${url} via Proxy`);
+    }
+
+    const response = await fetch(url, fetchOptions);
+    return response;
+    
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error("[Digiflazz Proxy] Request timed out (30s). Proxy is slow or Digiflazz is unreachable.");
+    }
+    console.error("[Digiflazz Proxy] Request failed:", err.message);
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 // ─────────────────────────────────────────────
