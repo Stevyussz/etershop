@@ -18,6 +18,7 @@ import { formatRupiah } from "@/lib/utils";
 import MiniBarChart from "./MiniBarChart";
 
 export const dynamic = "force-dynamic"; // Always render at request time (hits DB + Digiflazz API)
+import RefreshBalanceButton from "./RefreshBalanceButton";
 import {
   DollarSign, TrendingUp, CheckCircle2, Clock,
   Wallet, Receipt, RefreshCcw, Package, AlertTriangle, BarChart2
@@ -132,12 +133,7 @@ export default async function AdminOverview() {
               </div>
             </div>
           )}
-          <div className="bg-[#111823] border border-white/5 rounded-2xl px-4 py-3 flex items-center gap-2.5 shadow-lg">
-            <div className={`w-2.5 h-2.5 rounded-full ${isDigiflazzOnline ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-rose-500"}`} />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-              {isDigiflazzOnline ? "Digiflazz Online" : "Digiflazz Offline"}
-            </span>
-          </div>
+          <RefreshBalanceButton isOnline={isDigiflazzOnline} />
         </div>
       </div>
 

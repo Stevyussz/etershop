@@ -9,7 +9,7 @@
 
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import prisma from "@/lib/prisma";
 
 // ─────────────────────────────────────────────
@@ -287,3 +287,12 @@ export async function manualProcessOrder(orderId: string): Promise<{ success: bo
     return { success: false, message: error.message };
   }
 }
+
+/**
+ * Manually revalidates the Digiflazz balance cache.
+ * This triggers a fresh API call via the Fixie proxy.
+ */
+export async function refreshDigiflazzBalance(): Promise<void> {
+  revalidateTag("digiflazz-balance", "default");
+}
+

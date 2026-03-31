@@ -10,6 +10,19 @@
  */
 
 import { createDigiflazzSignature } from "@/lib/utils";
+import fetch from "node-fetch";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { unstable_cache } from "next/cache";
+
+// Custom fetch wrapper that automatically routes via Fixie proxy if the env proxy URL is set
+async function fetchViaProxy(url: string, options: any) {
+  const proxyUrl = process.env.FIXIE_URL;
+  if (proxyUrl) {
+    options.agent = new HttpsProxyAgent(proxyUrl);
+    // console.log("[Fixie] Routing Digiflazz request via Proxy");
+  }
+  return fetch(url, options);
+}
 
 // ─────────────────────────────────────────────
 // CONFIGURATION
@@ -83,32 +96,45 @@ export interface DigiflazzTransactionResult {
 // ─────────────────────────────────────────────
 
 /**
- * Fetches the current account deposit balance from Digiflazz.
- * Used for real-time balance monitoring in the Admin Dashboard.
- *
- * @returns The current deposit balance in IDR, or null if the request fails.
+ * Internal function that actually hits the Digiflazz balance API.
  */
-export async function getDigiflazzBalance(): Promise<number | null> {
+async function fetchDigiflazzBalanceLive(): Promise<number | null> {
   try {
     const { username, apiKey } = getCredentials();
     const sign = createDigiflazzSignature(username, apiKey, "depo");
 
-    const res = await fetch(`${DIGIFLAZZ_BASE_URL}/cek-saldo`, {
+    const res = await fetchViaProxy(`${DIGIFLAZZ_BASE_URL}/cek-saldo`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cmd: "deposit", username, sign }),
-      cache: "no-store", // Always fetch live balance
     });
 
     if (!res.ok) return null;
 
-    const json = await res.json();
+    const json = (await res.json()) as any;
     return json.data?.deposit ?? null;
   } catch (error) {
     console.error("[Digiflazz] Failed to fetch balance:", error);
     return null;
   }
 }
+
+/**
+ * Fetches the current account deposit balance from Digiflazz.
+ * Used for real-time balance monitoring in the Admin Dashboard.
+ * 
+ * CRITICAL QUOTA OPTIMIZATION: 
+ * Cached aggressively for 24 hours to prevent draining Fixie Proxy monthly limits 
+ * (500 requests/month) when the admin frequently reloads the dashboard.
+ * Use revalidateTag("digiflazz-balance") in an action to force refresh.
+ *
+ * @returns The current deposit balance in IDR, or null if the request fails.
+ */
+export const getDigiflazzBalance = unstable_cache(
+  async () => fetchDigiflazzBalanceLive(),
+  ["digiflazz-balance-cache"],
+  { revalidate: 86400, tags: ["digiflazz-balance"] } // 86400s = 24 hours
+);
 
 /**
  * Fetches the full prepaid product price list from Digiflazz.
@@ -121,11 +147,10 @@ export async function getDigiflazzPriceList(): Promise<DigiflazzProduct[]> {
     const { username, apiKey } = getCredentials();
     const sign = createDigiflazzSignature(username, apiKey, "pricelist");
 
-    const res = await fetch(`${DIGIFLAZZ_BASE_URL}/price-list`, {
+    const res = await fetchViaProxy(`${DIGIFLAZZ_BASE_URL}/price-list`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cmd: "prepaid", username, sign }),
-      cache: "no-store",
     });
 
     if (!res.ok) {
@@ -133,7 +158,7 @@ export async function getDigiflazzPriceList(): Promise<DigiflazzProduct[]> {
       throw new Error(`Digiflazz price-list returned HTTP ${res.status}: ${errorBody}`);
     }
 
-    const json = await res.json();
+    const json = (await res.json()) as any;
 
     if (!Array.isArray(json.data)) {
       // Digiflazz may return an object with a message on auth/IP errors
@@ -189,18 +214,20 @@ export async function executeDigiflazzTopup(
     try {
       console.log(`[Digiflazz] Topup attempt ${attempt}/${MAX_RETRIES} for refId: ${refId}`);
 
-      const response = await fetch(`${DIGIFLAZZ_BASE_URL}/transaction`, {
+      const response = await fetchViaProxy(`${DIGIFLAZZ_BASE_URL}/transaction`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as { data: DigiflazzTransactionResult };
+      const resultData = data?.data;
+      const digiStatus = resultData?.status;
 
       // If Digiflazz explicitly marks it as "Gagal", the product has an issue.
       // No point in retrying — it will fail again.
-      if (data?.data?.status === "Gagal") {
-        console.warn(`[Digiflazz] Transaction explicitly FAILED for ${refId}:`, data?.data?.message);
+      if (digiStatus === "Gagal") {
+        console.warn(`[Digiflazz] Transaction explicitly FAILED for ${refId}:`, resultData?.message);
         return data;
       }
 
