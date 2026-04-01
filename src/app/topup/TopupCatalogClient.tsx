@@ -19,7 +19,7 @@ import { slugifyBrand } from "@/lib/utils";
 import { 
   Zap, Flame, Monitor, Smartphone, ChevronRight, 
   Search, ShieldCheck, Trophy, Clock, Gamepad, Gift,
-  ImageIcon, Sparkles
+  ImageIcon, Sparkles, TicketCheck, Wallet
 } from "lucide-react";
 
 type GameCategory = "Semua" | "Mobile" | "PC" | "Voucher" | "Lainnya";
@@ -33,12 +33,13 @@ interface GameMeta {
   isPopular: boolean;
 }
 
-const CATEGORIES: { label: GameCategory; icon: React.ElementType }[] = [
+const CATEGORIES: { label: string; icon: React.ElementType }[] = [
   { label: "Semua", icon: Flame },
-  { label: "Mobile", icon: Smartphone },
-  { label: "PC", icon: Monitor },
+  { label: "Games", icon: Gamepad },
+  { label: "Pulsa & Data", icon: Smartphone },
+  { label: "Token PLN", icon: Zap },
+  { label: "E-Wallet", icon: Wallet },
   { label: "Voucher", icon: Gift },
-  { label: "Lainnya", icon: Gamepad },
 ];
 
 const BANNERS = [
@@ -74,7 +75,7 @@ interface Props {
 }
 
 export default function TopupCatalogClient({ games, configs }: Props) {
-  const [activeTab, setActiveTab] = useState<GameCategory>("Semua");
+  const [activeTab, setActiveTab] = useState<string>("Semua");
   const [currentSlide, setCurrentSlide] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -92,17 +93,27 @@ export default function TopupCatalogClient({ games, configs }: Props) {
   const allGames = useMemo(() => {
     const seen = new Map<string, GameMeta>();
     
-    games.forEach((g) => {
-      const config = configs.find(c => c.brand.trim().toUpperCase() === g.brand.trim().toUpperCase());
+    games.forEach((g: any) => {
+      const config = configs.find(c => c.brand.trim().toUpperCase() === (g.brand || "").trim().toUpperCase());
       const slug = slugifyBrand(g.brand);
       
       if (!seen.has(slug)) {
+        // Map Digiflazz category to UI Label
+        let uiCtg: string = "Games";
+        const rawCtg = g.category || "Games";
+        
+        if (rawCtg === "Pulsa") uiCtg = "Pulsa & Data";
+        else if (rawCtg === "PLN") uiCtg = "Token PLN";
+        else if (rawCtg === "E-Money") uiCtg = "E-Wallet";
+        else if (rawCtg === "Voucher") uiCtg = "Voucher";
+        else uiCtg = "Games";
+
         seen.set(slug, {
           brand: g.brand,
           slug: slug,
           img: config?.imageUrl || null,
-          title: g.brand, // ALWAYS use brand name as title for consistency
-          ctg: (config?.category as GameCategory) || "Lainnya",
+          title: g.brand, 
+          ctg: (uiCtg || "Games") as any,
           isPopular: config?.isPopular || false
         });
       }

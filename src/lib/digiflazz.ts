@@ -275,3 +275,51 @@ export async function executeDigiflazzTopup(
 
   throw new Error(`[Digiflazz] Transaction failed after ${MAX_RETRIES} attempts for ${refId}. Last error: ${lastError?.message}`);
 }
+
+/**
+ * Checks the current status of an existing transaction on Digiflazz.
+ * This is used to "rescue" stuck transactions by querying their latest state
+ * directly from the provider without re-submitting an order.
+ *
+ * @param refId - The unique reference ID (our internal order ID).
+ * @param sku - The Digiflazz buyer_sku_code for the product.
+ * @param customerNo - The destination account number.
+ * @returns The Digiflazz transaction result object.
+ */
+export async function checkDigiflazzTransactionStatus(
+  refId: string,
+  sku: string,
+  customerNo: string
+): Promise<{ data: DigiflazzTransactionResult }> {
+  const { username, apiKey } = getCredentials();
+  // Signature for status check is MD5(username + apiKey + "status")
+  const sign = createDigiflazzSignature(username, apiKey, refId);
+
+  const payload = {
+    username,
+    buyer_sku_code: sku,
+    customer_no: customerNo,
+    ref_id: refId,
+    sign,
+    cmd: "status"
+  };
+
+  try {
+    const response = await fetchViaProxy(`${DIGIFLAZZ_BASE_URL}/transaction`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = (await response.json()) as { data: DigiflazzTransactionResult };
+    
+    if (!response.ok || !data?.data) {
+      throw new Error(`Digiflazz status check returned error: ${JSON.stringify(data)}`);
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error(`[Digiflazz] Status check failed for ${refId}:`, error.message);
+    throw error;
+  }
+}

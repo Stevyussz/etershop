@@ -41,8 +41,10 @@ export async function POST(req: NextRequest) {
     //     "sign": "md5hash"
     //   }
     // }
-    const payload = rawBody.data;
+    // Support both root payload and nested .data payload for flexibility
+    const payload = rawBody.data || rawBody;
     if (!payload || !payload.ref_id || !payload.status) {
+      console.warn("[DigiflazzWebhook] Invalid payload format received:", rawBody);
       return NextResponse.json({ error: "Invalid payload format" }, { status: 400 });
     }
 

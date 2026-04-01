@@ -20,6 +20,7 @@ import {
 import prisma from "@/lib/prisma";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import AutoRefresh from "./AutoRefresh";
+import RefreshButton from "./RefreshButton";
 
 interface PageProps {
   searchParams: Promise<{ order_id?: string; pending?: string }>;
@@ -87,8 +88,8 @@ export default async function TopupSuccessPage({ searchParams }: PageProps) {
       iconBg: "bg-yellow-500/10",
       ping: "border-yellow-400/40",
       icon: <Clock className="w-14 h-14 text-yellow-400 animate-pulse" />,
-      title: "Menunggu Pembayaran",
-      desc: "Selesaikan pembayaran di aplikasi e-wallet atau QRIS kamu.",
+      title: "Verifikasi Pembayaran ⏳",
+      desc: "Sedang menunggu konfirmasi sistem. Jika Anda sudah membayar, status akan berubah otomatis dalam beberapa detik.",
     },
     FAILED: {
       border: "border-red-500/30",
@@ -197,6 +198,19 @@ export default async function TopupSuccessPage({ searchParams }: PageProps) {
                   <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2.5 rounded-xl">
                     <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
                     <span>{transaction.digiflazzNote}</span>
+                  </div>
+                </>
+              )}
+              {/* PENDING — manual check button */}
+              {isPending && (
+                <>
+                  <div className="h-px bg-white/5" />
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-3 py-2.5 rounded-xl">
+                      <Clock className="w-3 h-3 animate-pulse shrink-0" />
+                      Status: Belum terbaca. Webhook mungkin sedang tertunda.
+                    </div>
+                    <RefreshButton />
                   </div>
                 </>
               )}

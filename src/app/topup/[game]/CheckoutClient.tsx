@@ -55,16 +55,34 @@ const GAME_DISPLAY_META: Record<string, { img: string; title: string; ctg: strin
 /**
  * Resolves display metadata for any brand, with graceful fallback.
  */
-function resolveCheckoutMeta(brand: string) {
+function resolveCheckoutMeta(brand: string, category?: string) {
   const key = brand.trim().toUpperCase();
   const curated = GAME_DISPLAY_META[key];
+  
+  // Default values based on category
+  let defaultImg = "/games/default.png";
+  let defaultTitle = brand;
+  let defaultCtg = category || "Games";
+  let defaultDev = "Service Provider";
+
+  if (category === "Pulsa") {
+    defaultImg = "/games/pulsa.png";
+    defaultDev = "Telekomunikasi";
+  } else if (category === "PLN") {
+    defaultImg = "/games/pln.png";
+    defaultDev = "Energi";
+  } else if (category === "E-Money") {
+    defaultImg = "/games/emoney.png";
+    defaultDev = "Fintech";
+  }
+
   return {
     slug: slugifyBrand(brand),
-    img: curated?.img ?? "/games/default.png",
-    title: curated?.title ?? brand,
-    ctg: curated?.ctg ?? "Games",
-    bg: curated?.bg ?? "/games/default.png",
-    dev: curated?.dev ?? "Publisher",
+    img: curated?.img ?? defaultImg,
+    title: curated?.title ?? defaultTitle,
+    ctg: curated?.ctg ?? defaultCtg,
+    bg: curated?.bg ?? defaultImg,
+    dev: curated?.dev ?? defaultDev,
   };
 }
 
@@ -79,9 +97,15 @@ const PAYMENT_METHODS = [
 export default function CheckoutClient({ products, brand, config }: CheckoutClientProps) {
   const router = useRouter();
   
+  const category = products[0]?.category || "Games";
+  const isGame = category === "Games";
+  const isPulsa = category === "Pulsa";
+  const isPLN = category === "PLN";
+  const isEmoney = category === "E-Money";
+
   // Use config data if available, fallback to resolveCheckoutMeta
   const meta = useMemo(() => {
-    const fallback = resolveCheckoutMeta(brand);
+    const fallback = resolveCheckoutMeta(brand, category);
     if (!config) return fallback;
 
     return {
@@ -89,9 +113,10 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
       title: config.title || brand,
       bg: config.imageUrl || fallback.bg,
     };
-  }, [brand, config]);
+  }, [brand, config, category]);
 
-  const needsZoneId = GAMES_REQUIRING_ZONE_ID.has(brand.trim().toUpperCase());
+  const needsZoneId = isGame && GAMES_REQUIRING_ZONE_ID.has(brand.trim().toUpperCase());
+  const canCheckNickname = isGame; // Only allow nickname check for Games
 
   const [gameId, setGameId] = useState("");
   const [zoneId, setZoneId] = useState("");
@@ -338,14 +363,16 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">User ID</label>
+                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">
+                      {isPulsa || isEmoney ? "Nomor HP" : isPLN ? "ID Pelanggan / Nomor Meter" : "User ID"}
+                    </label>
                     <div className="relative">
                       <input 
                         type="text" value={gameId} onChange={(e) => setGameId(e.target.value)}
-                        placeholder="Masukkan User ID"
+                        placeholder={isPulsa || isEmoney ? "0812xxxx" : isPLN ? "Masukkan ID Pelanggan" : "Masukkan User ID"}
                         className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-4 px-6 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
                       />
-                      {!needsZoneId && gameId.length > 4 && !nickname && (
+                      {canCheckNickname && !needsZoneId && gameId.length > 4 && !nickname && (
                         <button 
                           onClick={handleCheckNickname}
                           disabled={isCheckingNick}
@@ -370,7 +397,7 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
                           placeholder="Masukkan Zone ID"
                           className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-4 px-6 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
                         />
-                        {gameId.length > 4 && zoneId.length >= 4 && !nickname && (
+                        {canCheckNickname && gameId.length > 4 && zoneId.length >= 4 && !nickname && (
                           <button 
                             onClick={handleCheckNickname}
                             disabled={isCheckingNick}

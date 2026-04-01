@@ -229,7 +229,7 @@ export async function manualProcessOrder(orderId: string): Promise<{ success: bo
       return { success: false, message: `Tidak dapat memproses transaksi dengan status ${transaction.status}.` };
     }
 
-    const { executeDigiflazzTopup } = await import("@/lib/digiflazz");
+    const { executeDigiflazzTopup, checkDigiflazzTransactionStatus } = await import("@/lib/digiflazz");
 
     const customerNo = transaction.zoneId
       ? `${transaction.gameId}${transaction.zoneId}`
@@ -239,17 +239,33 @@ export async function manualProcessOrder(orderId: string): Promise<{ success: bo
     let digiflazzNote = "No response from Digiflazz";
 
     try {
-      const result = await executeDigiflazzTopup(
-        transaction.sku,
-        customerNo,
-        transaction.orderId
-      );
+      // 1. FIRST: Check current status from Digiflazz (in case it already succeeded)
+      console.log(`[ManualProcess] Checking status for ref_id: ${orderId}`);
+      const checkResult = await checkDigiflazzTransactionStatus(orderId, transaction.sku, customerNo);
+      let digiStatus = checkResult?.data?.status;
 
-      const digiStatus = result?.data?.status;
+      // 2. SECOND: If not success, try to pay/execute if allowed
+      if (digiStatus !== "Sukses" && digiStatus !== "Pending") {
+         console.log(`[ManualProcess] Status is ${digiStatus} — attempting re-order for ref_id: ${orderId}`);
+         const payResult = await executeDigiflazzTopup(
+           transaction.sku,
+           customerNo,
+           transaction.orderId
+         );
+         // Support both root payload and nested .data payload for flexibility
+         const payload = payResult.data || payResult;
+         if (!payload || !payload.ref_id || !payload.status) {
+           console.warn("[DigiflazzWebhook] Invalid payload format received:", payResult);
+         }
+         digiStatus = payResult?.data?.status;
+         var resultData = payResult.data;
+      } else {
+         var resultData = checkResult.data;
+      }
 
       if (digiStatus === "Sukses") {
         finalStatus = "SUCCESS";
-        digiflazzNote = result.data?.sn ? `SN: ${result.data.sn}` : result.data?.message || "Manual retry berhasil";
+        digiflazzNote = resultData?.sn ? `SN: ${resultData.sn}` : resultData?.message || "Manual status check/retry berhasil";
         
         // INCREMENT VOUCHER USAGE (CRITICAL)
         if (transaction.voucherId) {
@@ -264,10 +280,10 @@ export async function manualProcessOrder(orderId: string): Promise<{ success: bo
         }
       } else if (digiStatus === "Pending") {
         finalStatus = "PAID";
-        digiflazzNote = result.data?.message || "Masih diproses Digiflazz (Pending)";
+        digiflazzNote = resultData?.message || "Masih diproses Digiflazz (Pending)";
       } else {
         finalStatus = "FAILED";
-        digiflazzNote = result?.data?.message || `Topup gagal (status: ${digiStatus})`;
+        digiflazzNote = resultData?.message || `Topup gagal (status: ${digiStatus})`;
       }
     } catch (digiErr: any) {
       finalStatus = "FAILED";
