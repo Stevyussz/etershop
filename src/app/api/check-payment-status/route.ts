@@ -70,45 +70,52 @@ export async function GET(req: NextRequest) {
       
       // If waiting > 15s, self heal via direct API check
       if (timeSinceUpdate > 15000) {
-        console.log(`[CheckPaymentStatus] 🔧 Digiflazz Self-Healing: order ${orderId} stuck in PAID for ${Math.floor(timeSinceUpdate/1000)}s. Querying Digiflazz API...`);
-        
-        try {
-          const customerNo = transaction.zoneId
-            ? `${transaction.gameId}${transaction.zoneId}`
-            : transaction.gameId;
+        // To prevent Digiflazz from rate-limiting our status checks ("Too many requests"),
+        // we throttle the API calls to AT MOST once every 15 seconds based on global clock time.
+        const throttleWindow = Math.floor(Date.now() / 1000) % 15;
+        const isSafeToQuery = throttleWindow <= 4; // Only query in the first 4s of each 15s block
+
+        if (isSafeToQuery) {
+          console.log(`[CheckPaymentStatus] 🔧 Digiflazz Self-Healing: order ${orderId} stuck in PAID. Querying Digiflazz API...`);
+          try {
+            const customerNo = transaction.zoneId
+              ? `${transaction.gameId}${transaction.zoneId}`
+              : transaction.gameId;
+              
+            const digiRes = await checkDigiflazzTransactionStatus(orderId, transaction.sku, customerNo);
+            const digiStatus = digiRes?.data?.status;
             
-          const digiRes = await checkDigiflazzTransactionStatus(orderId, transaction.sku, customerNo);
-          const digiStatus = digiRes?.data?.status;
-          
-          if (digiStatus === "Sukses") {
-            currentStatus = "SUCCESS";
-            digiflazzNote = digiRes?.data?.sn ? `SN: ${digiRes.data.sn}` : digiRes?.data?.message || "Topup berhasil";
-            console.log(`[CheckPaymentStatus] ✅ Digiflazz Self-Healed ${orderId} → SUCCESS`);
-            
-            // Save to DB
-            await prisma.topupTransaction.update({
-              where: { orderId },
-              data: { status: currentStatus, digiflazzNote },
-            });
-            // Return immediately - we're done!
-            return NextResponse.json({ status: currentStatus, note: digiflazzNote, digiflazzSelfHealed: true });
-          } else if (digiStatus === "Gagal") {
-            currentStatus = "FAILED";
-            digiflazzNote = digiRes?.data?.message || "Topup gagal";
-             console.log(`[CheckPaymentStatus] ❌ Digiflazz Self-Healed ${orderId} → FAILED`);
-             
-            // Save to DB
-            await prisma.topupTransaction.update({
-              where: { orderId },
-              data: { status: currentStatus, digiflazzNote },
-            });
-            return NextResponse.json({ status: currentStatus, note: digiflazzNote, digiflazzSelfHealed: true });
-          } else {
-             console.log(`[CheckPaymentStatus] ⏳ Digiflazz confirmed order ${orderId} is still Pending.`);
-             // Still pending in Digiflazz, let it return PAID
+            if (digiStatus === "Sukses") {
+              currentStatus = "SUCCESS";
+              digiflazzNote = digiRes?.data?.sn ? `SN: ${digiRes.data.sn}` : digiRes?.data?.message || "Topup berhasil";
+              console.log(`[CheckPaymentStatus] ✅ Digiflazz Self-Healed ${orderId} → SUCCESS`);
+              
+              // Save to DB
+              await prisma.topupTransaction.update({
+                where: { orderId },
+                data: { status: currentStatus, digiflazzNote },
+              });
+              // Return immediately - we're done!
+              return NextResponse.json({ status: currentStatus, note: digiflazzNote, digiflazzSelfHealed: true });
+            } else if (digiStatus === "Gagal") {
+              currentStatus = "FAILED";
+              digiflazzNote = digiRes?.data?.message || "Topup gagal";
+               console.log(`[CheckPaymentStatus] ❌ Digiflazz Self-Healed ${orderId} → FAILED`);
+               
+              // Save to DB
+              await prisma.topupTransaction.update({
+                where: { orderId },
+                data: { status: currentStatus, digiflazzNote },
+              });
+              return NextResponse.json({ status: currentStatus, note: digiflazzNote, digiflazzSelfHealed: true });
+            } else {
+               console.log(`[CheckPaymentStatus] ⏳ Digiflazz confirmed order ${orderId} is still Pending.`);
+            }
+          } catch (digiErr: any) {
+            console.warn(`[CheckPaymentStatus] Failed to query Digiflazz status for ${orderId}:`, digiErr?.message);
           }
-        } catch (digiErr: any) {
-          console.warn(`[CheckPaymentStatus] Failed to query Digiflazz status for ${orderId}:`, digiErr?.message);
+        } else {
+          // Silently skip querying this cycle to avoid ratelimit
         }
       }
       
