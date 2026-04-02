@@ -212,9 +212,9 @@ export default function TopupCatalogClient({ games, configs }: Props) {
         </div>
       </div>
 
-      {/* ── SEAMLESS FILTER & SEARCH BAR (Sticky on Scroll) ── */}
-      <div className="sticky top-[80px] z-[40] container mx-auto px-4 max-w-7xl mb-12">
-        <div className="bg-[#111823]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-3 md:p-4 shadow-2xl flex flex-col lg:flex-row gap-6 lg:items-center justify-between transition-all duration-300">
+      {/* ── SEAMLESS FILTER & SEARCH BAR ── */}
+      <div className="container mx-auto px-4 max-w-7xl mt-12 mb-12">
+        <div className="bg-[#111823]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-4 md:p-6 shadow-2xl flex flex-col lg:flex-row gap-6 lg:items-center justify-between transition-all duration-300">
           
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 lg:py-0 scroll-smooth">
             {CATEGORIES.map(({ label, icon: Icon }) => {
