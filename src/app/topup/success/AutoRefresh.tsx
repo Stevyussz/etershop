@@ -23,8 +23,9 @@ export default function AutoRefresh({ orderId, intervalMs = 1500 }: AutoRefreshP
     const poll = async () => {
       if (resolvedRef.current) return;
       try {
-        const res = await fetch(`/api/check-payment-status?order_id=${encodeURIComponent(orderId)}`, {
-          cache: "no-store", // Force bypass any HTTP cache
+        // Use a timestamp to mathematically prevent browser caching of the API response
+        const res = await fetch(`/api/check-payment-status?order_id=${encodeURIComponent(orderId)}&t=${Date.now()}`, {
+          cache: "no-store", 
         });
         if (!res.ok) return;
 

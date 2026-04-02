@@ -20,7 +20,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { executeDigiflazzTopup } from "@/lib/digiflazz";
+import { executeDigiflazzTopup, checkDigiflazzTransactionStatus } from "@/lib/digiflazz";
 
 // Never cache this route — it must always read live data from the DB
 export const dynamic = "force-dynamic";
@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
         zoneId: true,
         voucherId: true,
         digiflazzNote: true,
+        updatedAt: true,
       },
     });
 
@@ -51,9 +52,68 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
     }
 
-    // ── Step 2: Already resolved or processing — return fast ───────────────────────────
-    if (transaction.status === "SUCCESS" || transaction.status === "FAILED" || transaction.status === "PAID") {
+    // ── Step 2: Already resolved — return fast ───────────────────────────
+    if (transaction.status === "SUCCESS" || transaction.status === "FAILED") {
       return NextResponse.json({ status: transaction.status, note: transaction.digiflazzNote });
+    }
+
+    // ── Step 2.5: Digiflazz Self-Healing (PAID state) ─────────────────────
+    // If the transaction is PAID, we are waiting for Digiflazz.
+    // Usually the digiflazz-webhook handles this instantly.
+    // But if > 15 seconds have passed and it's still PAID, the webhook might 
+    // be delayed or lost. We query Digiflazz manually!
+    let currentStatus = transaction.status;
+    let digiflazzNote = transaction.digiflazzNote;
+
+    if (currentStatus === "PAID") {
+      const timeSinceUpdate = Date.now() - new Date(transaction.updatedAt).getTime();
+      
+      // If waiting > 15s, self heal via direct API check
+      if (timeSinceUpdate > 15000) {
+        console.log(`[CheckPaymentStatus] 🔧 Digiflazz Self-Healing: order ${orderId} stuck in PAID for ${Math.floor(timeSinceUpdate/1000)}s. Querying Digiflazz API...`);
+        
+        try {
+          const customerNo = transaction.zoneId
+            ? `${transaction.gameId}${transaction.zoneId}`
+            : transaction.gameId;
+            
+          const digiRes = await checkDigiflazzTransactionStatus(orderId, transaction.sku, customerNo);
+          const digiStatus = digiRes?.data?.status;
+          
+          if (digiStatus === "Sukses") {
+            currentStatus = "SUCCESS";
+            digiflazzNote = digiRes?.data?.sn ? `SN: ${digiRes.data.sn}` : digiRes?.data?.message || "Topup berhasil";
+            console.log(`[CheckPaymentStatus] ✅ Digiflazz Self-Healed ${orderId} → SUCCESS`);
+            
+            // Save to DB
+            await prisma.topupTransaction.update({
+              where: { orderId },
+              data: { status: currentStatus, digiflazzNote },
+            });
+            // Return immediately - we're done!
+            return NextResponse.json({ status: currentStatus, note: digiflazzNote, digiflazzSelfHealed: true });
+          } else if (digiStatus === "Gagal") {
+            currentStatus = "FAILED";
+            digiflazzNote = digiRes?.data?.message || "Topup gagal";
+             console.log(`[CheckPaymentStatus] ❌ Digiflazz Self-Healed ${orderId} → FAILED`);
+             
+            // Save to DB
+            await prisma.topupTransaction.update({
+              where: { orderId },
+              data: { status: currentStatus, digiflazzNote },
+            });
+            return NextResponse.json({ status: currentStatus, note: digiflazzNote, digiflazzSelfHealed: true });
+          } else {
+             console.log(`[CheckPaymentStatus] ⏳ Digiflazz confirmed order ${orderId} is still Pending.`);
+             // Still pending in Digiflazz, let it return PAID
+          }
+        } catch (digiErr: any) {
+          console.warn(`[CheckPaymentStatus] Failed to query Digiflazz status for ${orderId}:`, digiErr?.message);
+        }
+      }
+      
+      // If < 15s or still Pending in Digiflazz, fast-return PAID to save Midtrans API calls
+      return NextResponse.json({ status: currentStatus, note: digiflazzNote });
     }
 
     // ── Step 3: Still PENDING/PAID → Ask Midtrans directly ──────────────
