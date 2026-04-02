@@ -28,51 +28,71 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = await req.json();
+    // We MUST read the raw text for HMAC SHA1 signature verification
+    const rawBodyText = await req.text();
+    let rawBody;
+    try {
+      rawBody = JSON.parse(rawBodyText);
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
     const headersList = req.headers;
     
     // 1. Initial Webhook Validation
     const eventType = headersList.get("x-digiflazz-event");
-    if (eventType !== "update") {
+    if (eventType !== "update" && eventType !== "create") {
       // Ignored non-update events
       return NextResponse.json({ message: "Ignored event" }, { status: 200 });
     }
 
-    // Example payload shape based on Digiflazz docs:
-    // {
-    //   "data": {
-    //     "ref_id": "TRX-1234",
-    //     "status": "Sukses",
-    //     "sn": "12345/SN",
-    //     "message": "Topup sukses",
-    //     "sign": "md5hash"
-    //   }
-    // }
-    // Support both root payload and nested .data payload for flexibility
+    // 2. Security: Verify Digiflazz Signature
+    const webhookSecret = process.env.DIGIFLAZZ_WEBHOOK_SECRET;
+    const headerSignature = headersList.get("x-hub-signature");
+
+    if (webhookSecret && headerSignature) {
+      // Official method: HMAC SHA1 of the entire raw payload
+      const expectedHmac = crypto.createHmac("sha1", webhookSecret).update(rawBodyText).digest("hex");
+      const expectedHeader = `sha1=${expectedHmac}`;
+
+      if (headerSignature !== expectedHeader) {
+        console.warn(`[DigiflazzWebhook] ⚠️ INVALID HMAC SIGNATURE for webhook. Expected ${expectedHeader}, got ${headerSignature}`);
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+    } else {
+      // Fallback/Legacy method (Not recommended, Digiflazz payload might not contain sign)
+      console.warn(`[DigiflazzWebhook] DIGIFLAZZ_WEBHOOK_SECRET is not set. Falling back to legacy MD5 payload signature.`);
+      const payloadSign = rawBody.data?.sign || rawBody.sign;
+      if (!payloadSign) {
+         // Without a secret and without a payload sign, we cannot securely verify. 
+         // But since we have a self-healing mechanism, we can reject it to force self-healing,
+         // or we can just accept it (dangerous). Let's reject it to ensure security.
+         console.warn(`[DigiflazzWebhook] Payload missing 'sign' and no webhook secret configured. Rejecting.`);
+         return NextResponse.json({ error: "Missing signature" }, { status: 403 });
+      }
+
+      const username = process.env.DIGIFLAZZ_USERNAME || "";
+      const apiKey = process.env.DIGIFLAZZ_API_KEY || "";
+      const refId = rawBody.data?.ref_id || rawBody.ref_id || "";
+
+      const sigVariant1 = crypto.createHash("md5").update(username + apiKey + refId).digest("hex");
+      const sigVariant2 = crypto.createHash("md5").update(username + apiKey + "cs").digest("hex");
+
+      if (payloadSign !== sigVariant1 && payloadSign !== sigVariant2) {
+        console.warn(`[DigiflazzWebhook] ⚠️ INVALID MD5 SIGNATURE (received: ${payloadSign}).`);
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+    }
+
+    // Extract payload data
     const payload = rawBody.data || rawBody;
     if (!payload || !payload.ref_id || !payload.status) {
-      console.warn("[DigiflazzWebhook] Invalid payload format received:", rawBody);
-      return NextResponse.json({ error: "Invalid payload format" }, { status: 400 });
+      console.warn("[DigiflazzWebhook] Invalid payload format received or ping event");
+      return NextResponse.json({ message: "Ping or Invalid format" }, { status: 200 });
     }
 
-    const { ref_id, status, sn, message, sign: signature_key } = payload;
+    const { ref_id, status, sn, message } = payload;
     const orderId = ref_id;
-
-    // 2. Security: Verify Digiflazz Signature
-    const username = process.env.DIGIFLAZZ_USERNAME || "";
-    const apiKey = process.env.DIGIFLAZZ_API_KEY || "";
-    
-    // Digiflazz can use MD5(username + apikey + orderId) OR MD5(username + apikey + "cs") 
-    // depending on the protocol version. We'll check both for maximum reliability.
-    const sigVariant1 = crypto.createHash("md5").update(username + apiKey + orderId).digest("hex");
-    const sigVariant2 = crypto.createHash("md5").update(username + apiKey + "cs").digest("hex");
-
-    const isValidSignature = (signature_key === sigVariant1) || (signature_key === sigVariant2);
-
-    if (!isValidSignature) {
-      console.warn(`[DigiflazzWebhook] ⚠️  INVALID SIGNATURE (received: ${signature_key}) for order ${orderId}. Expected variant 1 or 2.`);
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
 
     // 3. Find Transaction Local Record
     const transaction = await prisma.topupTransaction.findUnique({
