@@ -244,10 +244,12 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
             setIsVerifying(true);
             const oid = result.order_id || data.orderId || 'trxkustom';
 
-            // ── Smart Polling: Wait until DB status leaves PENDING ──
-            // This eliminates the race condition where the user sees a stale
-            // PENDING state because the Midtrans webhook hasn't arrived yet.
-            const MAX_POLLS = 20;          // 20 × 1.5s = max 30 seconds
+            // ── Smart Polling: Wait until payment is fully resolved ──
+            // PENDING  = Midtrans not confirmed yet (keep polling)
+            // PAID     = Midtrans confirmed, Digiflazz still processing (keep polling)
+            // SUCCESS  = Diamond delivered ✅ → redirect
+            // FAILED   = Something went wrong → redirect (show error page)
+            const MAX_POLLS = 30;          // 30 × 1.5s = max 45 seconds
             const POLL_INTERVAL_MS = 1500;
 
             for (let i = 0; i < MAX_POLLS; i++) {
@@ -256,17 +258,21 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
                 const statusRes = await fetch(`/api/check-payment-status?order_id=${oid}`);
                 if (statusRes.ok) {
                   const statusData = await statusRes.json();
-                  // Once the status is no longer PENDING, we can safely redirect
-                  if (statusData.status && statusData.status !== 'PENDING') {
-                    console.log(`[Checkout] Status resolved to ${statusData.status} after ${i + 1} poll(s).`);
+                  const currentStatus = statusData.status;
+                  // Only redirect once we have a FINAL answer (SUCCESS or FAILED)
+                  // PAID means payment confirmed but Digiflazz still working — keep waiting
+                  if (currentStatus === 'SUCCESS' || currentStatus === 'FAILED') {
+                    console.log(`[Checkout] Final status: ${currentStatus} after ${i + 1} poll(s).`);
                     break;
                   }
+                  console.log(`[Checkout] Poll ${i + 1}: status=${currentStatus}, continuing...`);
                 }
               } catch (pollErr) {
                 console.warn('[Checkout] Poll attempt failed, retrying...', pollErr);
               }
             }
 
+            // Redirect regardless — success page handles all statuses gracefully
             router.push(`/topup/success?order_id=${oid}`);
           },
           onPending: (result: any) => router.push(`/topup/success?order_id=${result.order_id || data.orderId || 'trxkustom'}&pending=true`),
