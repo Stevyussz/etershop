@@ -51,8 +51,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
     }
 
-    // ── Step 2: Already resolved — return fast ───────────────────────────
-    if (transaction.status === "SUCCESS" || transaction.status === "FAILED") {
+    // ── Step 2: Already resolved or processing — return fast ───────────────────────────
+    if (transaction.status === "SUCCESS" || transaction.status === "FAILED" || transaction.status === "PAID") {
       return NextResponse.json({ status: transaction.status, note: transaction.digiflazzNote });
     }
 

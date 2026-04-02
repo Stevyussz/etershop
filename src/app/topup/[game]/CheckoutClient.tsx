@@ -255,17 +255,18 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
             for (let i = 0; i < MAX_POLLS; i++) {
               await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
               try {
-                const statusRes = await fetch(`/api/check-payment-status?order_id=${oid}`);
+                // Bust browser cache entirely with cache: 'no-store' + timestamp
+                const statusRes = await fetch(`/api/check-payment-status?order_id=${oid}&t=${Date.now()}`, { cache: "no-store" });
                 if (statusRes.ok) {
                   const statusData = await statusRes.json();
                   const currentStatus = statusData.status;
-                  // Only redirect once we have a FINAL answer (SUCCESS or FAILED)
-                  // PAID means payment confirmed but Digiflazz still working — keep waiting
-                  if (currentStatus === 'SUCCESS' || currentStatus === 'FAILED') {
-                    console.log(`[Checkout] Final status: ${currentStatus} after ${i + 1} poll(s).`);
+                  // Break out as soon as Midtrans is confirmed (i.e. no longer PENDING)
+                  // Waiting for Digiflazz (which can take 15-60s) happens on the success page!
+                  if (currentStatus !== 'PENDING') {
+                    console.log(`[Checkout] Midtrans confirmed (${currentStatus}) after ${i + 1} poll(s). Redirecting...`);
                     break;
                   }
-                  console.log(`[Checkout] Poll ${i + 1}: status=${currentStatus}, continuing...`);
+                  console.log(`[Checkout] Poll ${i + 1}: status=${currentStatus}, still waiting for Midtrans...`);
                 }
               } catch (pollErr) {
                 console.warn('[Checkout] Poll attempt failed, retrying...', pollErr);
