@@ -26,6 +26,11 @@ interface PageProps {
   searchParams: Promise<{ order_id?: string; pending?: string }>;
 }
 
+// CRITICAL: Disable all caching on this page.
+// window.location.reload() on the client must always hit a FRESH server render
+// that reads the latest transaction status from the database.
+export const dynamic = "force-dynamic";
+
 export default async function TopupSuccessPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const orderId = params.order_id;
@@ -106,8 +111,8 @@ export default async function TopupSuccessPage({ searchParams }: PageProps) {
 
   return (
     <div className="min-h-screen bg-[#0a0f16] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Active status poller — polls /api/check-payment-status until resolved */}
-      {shouldAutoRefresh && orderId && <AutoRefresh orderId={orderId} intervalMs={2000} />}
+      {/* Active status poller — polls /api/check-payment-status every 1.5s */}
+      {shouldAutoRefresh && orderId && <AutoRefresh orderId={orderId} intervalMs={1500} />}
 
       {/* Ambient background */}
       <div className={`absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] ${cfg.bg} via-[#0a0f16] to-[#0a0f16]`} />

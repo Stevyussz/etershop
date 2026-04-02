@@ -22,6 +22,9 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { executeDigiflazzTopup } from "@/lib/digiflazz";
 
+// Never cache this route — it must always read live data from the DB
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const orderId = req.nextUrl.searchParams.get("order_id");
 
