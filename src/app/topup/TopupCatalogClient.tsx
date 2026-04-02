@@ -213,8 +213,8 @@ export default function TopupCatalogClient({ games, configs }: Props) {
       </div>
 
       {/* ── SEAMLESS FILTER & SEARCH BAR (Sticky on Scroll) ── */}
-      <div className="sticky top-4 md:top-6 z-40 container mx-auto px-4 max-w-7xl mb-12 translate-y-[-20%] md:translate-y-[-50%]">
-        <div className="bg-[#111823]/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-2 md:p-3 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.9)] flex flex-col lg:flex-row gap-4 lg:items-center justify-between transition-all duration-500 border-t-white/10">
+      <div className="sticky top-[80px] z-[40] container mx-auto px-4 max-w-7xl mb-12">
+        <div className="bg-[#111823]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-3 md:p-4 shadow-2xl flex flex-col lg:flex-row gap-6 lg:items-center justify-between transition-all duration-300">
           
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 lg:py-0 scroll-smooth">
             {CATEGORIES.map(({ label, icon: Icon }) => {
@@ -241,14 +241,14 @@ export default function TopupCatalogClient({ games, configs }: Props) {
             })}
           </div>
 
-          <div className="relative group w-full lg:w-[320px] xl:w-[400px]">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-400 group-focus-within:scale-110 transition-all" />
+          <div className="relative group w-full lg:w-[320px] xl:w-[450px]">
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-400 group-focus-within:scale-110 transition-all" />
             <input
               type="text"
-              placeholder="Cari voucher atau game..."
+              placeholder="Cari voucher atau game favoritmu..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#0a0f16]/60 border border-white/5 text-white pl-12 pr-4 py-3.5 rounded-[1.8rem] focus:outline-none focus:border-blue-500/40 focus:ring-1 focus:ring-blue-500/20 transition-all text-xs md:text-sm placeholder:text-slate-600"
+              className="w-full bg-[#0a0f16]/40 border border-white/10 text-white pl-14 pr-6 py-4 rounded-2xl focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all text-sm md:text-base placeholder:text-slate-500"
             />
           </div>
         </div>
