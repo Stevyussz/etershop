@@ -242,11 +242,34 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
         window.snap.pay(data.token, {
           onSuccess: async (result: any) => {
             setIsVerifying(true);
-            // Give the webhook 2 seconds to hit the DB before redirecting
-            await new Promise(r => setTimeout(r, 2000));
-            router.push(`/topup/success?order_id=${result.order_id || 'trxkustom'}`);
+            const oid = result.order_id || data.orderId || 'trxkustom';
+
+            // ── Smart Polling: Wait until DB status leaves PENDING ──
+            // This eliminates the race condition where the user sees a stale
+            // PENDING state because the Midtrans webhook hasn't arrived yet.
+            const MAX_POLLS = 20;          // 20 × 1.5s = max 30 seconds
+            const POLL_INTERVAL_MS = 1500;
+
+            for (let i = 0; i < MAX_POLLS; i++) {
+              await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+              try {
+                const statusRes = await fetch(`/api/check-payment-status?order_id=${oid}`);
+                if (statusRes.ok) {
+                  const statusData = await statusRes.json();
+                  // Once the status is no longer PENDING, we can safely redirect
+                  if (statusData.status && statusData.status !== 'PENDING') {
+                    console.log(`[Checkout] Status resolved to ${statusData.status} after ${i + 1} poll(s).`);
+                    break;
+                  }
+                }
+              } catch (pollErr) {
+                console.warn('[Checkout] Poll attempt failed, retrying...', pollErr);
+              }
+            }
+
+            router.push(`/topup/success?order_id=${oid}`);
           },
-          onPending: (result: any) => router.push(`/topup/success?order_id=${result.order_id || 'trxkustom'}&pending=true`),
+          onPending: (result: any) => router.push(`/topup/success?order_id=${result.order_id || data.orderId || 'trxkustom'}&pending=true`),
           onError: () => router.push('/topup/error'),
           onClose: () => console.log('User closed midtrans popup')
         });
@@ -696,8 +719,9 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
               <div className="absolute inset-0 animate-ping rounded-full border-2 border-blue-400/40 opacity-60" />
               <ShieldCheck className="w-12 h-12 text-blue-400 animate-pulse" />
             </div>
-            <h3 className="text-2xl md:text-3xl font-black text-white mb-3 tracking-tight">Memverifikasi Pembayaran...</h3>
-            <p className="text-slate-400 max-w-sm font-medium">Sistem sedang mensinkronkan data dengan Midtrans. Mohon tunggu sebentar.</p>
+            <h3 className="text-2xl md:text-3xl font-black text-white mb-3 tracking-tight">Mengkonfirmasi Pembayaran...</h3>
+            <p className="text-slate-400 max-w-sm font-medium">Sistem sedang memverifikasi status pembayaran Anda. Mohon <span className="text-white font-bold">jangan tutup halaman ini</span>.</p>
+            <p className="text-slate-600 text-xs mt-4">Proses ini biasanya selesai dalam 5–15 detik.</p>
           </motion.div>
         )}
       </AnimatePresence>
