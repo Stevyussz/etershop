@@ -20,7 +20,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import crypto from "crypto";
 import { executeDigiflazzTopup } from "@/lib/digiflazz";
 
 export async function GET(req: NextRequest) {
@@ -97,23 +96,22 @@ export async function GET(req: NextRequest) {
     ) {
       console.log(`[CheckPaymentStatus] 🔧 Self-healing: Midtrans confirmed ${orderId} but DB is PENDING. Triggering fulfillment...`);
 
-      // Verify signature to make sure Midtrans data is legitimate
-      if (midtransStatusCode && midtransGrossAmount) {
-        const expectedSig = crypto
-          .createHash("sha512")
-          .update(`${orderId}${midtransStatusCode}${midtransGrossAmount}${serverKey}`)
-          .digest("hex");
-        // Note: We can't verify against the actual sig here since we're polling,
-        // but the data came directly from Midtrans API with our server key, so it's safe.
-      }
-
-      // Mark as PAID
-      await prisma.topupTransaction.update({
-        where: { orderId },
+      // ── ATOMIC LOCK: Only proceed if we are the one who changes PENDING → PAID ──
+      // This prevents a race condition if the Midtrans webhook arrives at the same time.
+      // updateMany with a conditional WHERE clause is atomic — only one call wins.
+      const lockResult = await prisma.topupTransaction.updateMany({
+        where: { orderId, status: "PENDING" }, // ← Only update if STILL PENDING
         data: { status: "PAID" },
       });
 
-      // Execute Digiflazz topup
+      if (lockResult.count === 0) {
+        // Another process (the webhook) already claimed this transaction — skip
+        console.log(`[CheckPaymentStatus] ⏭️  Lock missed for ${orderId} — webhook already processing. Skipping.`);
+        const latest = await prisma.topupTransaction.findUnique({ where: { orderId }, select: { status: true, digiflazzNote: true } });
+        return NextResponse.json({ status: latest?.status ?? "PAID", note: latest?.digiflazzNote ?? null });
+      }
+
+      // We won the lock — safe to call Digiflazz
       const customerNo = transaction.zoneId
         ? `${transaction.gameId}${transaction.zoneId}`
         : transaction.gameId;
