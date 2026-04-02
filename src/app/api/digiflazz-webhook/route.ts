@@ -60,28 +60,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
       }
     } else {
-      // Fallback/Legacy method (Not recommended, Digiflazz payload might not contain sign)
-      console.warn(`[DigiflazzWebhook] DIGIFLAZZ_WEBHOOK_SECRET is not set. Falling back to legacy MD5 payload signature.`);
-      const payloadSign = rawBody.data?.sign || rawBody.sign;
-      if (!payloadSign) {
-         // Without a secret and without a payload sign, we cannot securely verify. 
-         // But since we have a self-healing mechanism, we can reject it to force self-healing,
-         // or we can just accept it (dangerous). Let's reject it to ensure security.
-         console.warn(`[DigiflazzWebhook] Payload missing 'sign' and no webhook secret configured. Rejecting.`);
-         return NextResponse.json({ error: "Missing signature" }, { status: 403 });
-      }
-
-      const username = process.env.DIGIFLAZZ_USERNAME || "";
-      const apiKey = process.env.DIGIFLAZZ_API_KEY || "";
-      const refId = rawBody.data?.ref_id || rawBody.ref_id || "";
-
-      const sigVariant1 = crypto.createHash("md5").update(username + apiKey + refId).digest("hex");
-      const sigVariant2 = crypto.createHash("md5").update(username + apiKey + "cs").digest("hex");
-
-      if (payloadSign !== sigVariant1 && payloadSign !== sigVariant2) {
-        console.warn(`[DigiflazzWebhook] ⚠️ INVALID MD5 SIGNATURE (received: ${payloadSign}).`);
-        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-      }
+      // Security fallback: If no webhook secret is configured, we cannot verify the HMAC signature.
+      // However, to ensure frictionless setup, we will ALLOW the webhook payload, BUT we will mark a flag
+      // to forcefully verify its truthfulness via the Digiflazz Check Status API later in the code.
+      console.warn(`[DigiflazzWebhook] DIGIFLAZZ_WEBHOOK_SECRET is not set! Using active-verification fallback.`);
+      // We do not reject it! We proceed to extract orderId and verify it securely.
     }
 
     // Extract payload data
@@ -110,14 +93,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Already resolved" }, { status: 200 });
     }
 
-    // 4. Update Status based on webhook payload
+    // --- ACTIVE VERIFICATION FOR UNTRUSTED WEBHOOKS ---
     let finalStatus: "SUCCESS" | "FAILED" | "PAID" = "PAID";
     let digiflazzNote = "Webhook Payload Processed";
+    
+    // Webhook variable re-assignment to allow active verification to override it
+    let verifiedStatus = status; 
+    let verifiedSn = sn;
+    let verifiedMessage = message;
 
-    if (status === "Sukses") {
+    if (!webhookSecret || !headerSignature) {
+       console.log(`[DigiflazzWebhook] 🔍 Actively verifying untrusted webhook for ${orderId}...`);
+       try {
+         const { checkDigiflazzTransactionStatus } = await import("@/lib/digiflazz");
+         const customerNo = transaction.zoneId ? `${transaction.gameId}${transaction.zoneId}` : transaction.gameId;
+         const digiRes = await checkDigiflazzTransactionStatus(orderId, transaction.sku, customerNo);
+         
+         verifiedStatus = digiRes?.data?.status || "Pending";
+         verifiedSn = digiRes?.data?.sn;
+         verifiedMessage = digiRes?.data?.message;
+         
+         if (verifiedStatus !== "Sukses" && verifiedStatus !== "Gagal") {
+             console.warn(`[DigiflazzWebhook] ⚠️ Verification failed! Digiflazz says order ${orderId} is still Pending.`);
+             return NextResponse.json({ error: "Verification mismatch" }, { status: 400 });
+         }
+         console.log(`[DigiflazzWebhook] ✅ Active verification successful. Real status: ${verifiedStatus}`);
+       } catch (err: any) {
+         console.error(`[DigiflazzWebhook] ❌ Active verification error:`, err.message);
+         // Do not process the webhook if we cannot verify it securely! Return 200 so it doesn't retry forever.
+         return NextResponse.json({ error: "Verification service unavailable" }, { status: 200 });
+       }
+    }
+
+    if (verifiedStatus === "Sukses") {
       finalStatus = "SUCCESS";
-      digiflazzNote = sn ? `SN: ${sn}` : message || "Topup berhasil (Via Callback)";
-      console.log(`[DigiflazzWebhook] ✅ Order ${orderId} → SUCCESS. SN: ${sn}`);
+      digiflazzNote = verifiedSn ? `SN: ${verifiedSn}` : verifiedMessage || "Topup berhasil (Via Callback)";
+      console.log(`[DigiflazzWebhook] ✅ Order ${orderId} → SUCCESS. SN: ${verifiedSn}`);
 
       // 5. [CRITICAL] VOUCHER INCREMENT
       // If the topup succeeds via callback, we MUST increment the voucher usage limit!
@@ -133,13 +144,13 @@ export async function POST(req: NextRequest) {
         }
       }
 
-    } else if (status === "Gagal") {
+    } else if (verifiedStatus === "Gagal") {
       finalStatus = "FAILED";
-      digiflazzNote = message || `Topup gagal (Digiflazz Callback)`;
+      digiflazzNote = verifiedMessage || `Topup gagal (Digiflazz Callback)`;
       console.warn(`[DigiflazzWebhook] ❌ Order ${orderId} → FAILED. Reason: ${digiflazzNote}`);
     } else {
       // Still Pending or other intermediate states
-      console.log(`[DigiflazzWebhook] ⏳ Order ${orderId} status unchanged: ${status}`);
+      console.log(`[DigiflazzWebhook] ⏳ Order ${orderId} status unchanged: ${verifiedStatus}`);
       return NextResponse.json({ message: "Acknowledged - No Action" }, { status: 200 });
     }
 
