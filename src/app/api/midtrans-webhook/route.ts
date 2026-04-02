@@ -29,6 +29,14 @@ import prisma from "@/lib/prisma";
 import crypto from "crypto";
 import { executeDigiflazzTopup } from "@/lib/digiflazz";
 
+// Health check — prevents 405 when the URL is opened in a browser or pinged by monitoring tools
+export async function GET() {
+  return NextResponse.json({
+    status: "Active",
+    message: "EterShop Midtrans Webhook is alive. Listening for POST payment notifications.",
+  }, { status: 200 });
+}
+
 export async function POST(req: NextRequest) {
   let orderId = "UNKNOWN";
 
