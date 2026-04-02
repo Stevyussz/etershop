@@ -184,9 +184,9 @@ export default async function TopupSuccessPage({ searchParams }: PageProps) {
               {isProcessing && (
                 <>
                   <div className="h-px bg-white/5" />
-                  <div className="flex items-center gap-2 text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-2.5 rounded-xl">
-                    <RefreshCcw className="w-3 h-3 animate-spin shrink-0" />
-                    Sedang menghubungi Digiflazz... halaman ini akan refresh otomatis.
+                  <div className="flex items-start gap-2 text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-2.5 rounded-xl">
+                    <RefreshCcw className="w-3 h-3 animate-spin shrink-0 mt-0.5" />
+                    <span>Diamond sedang dikirim ke akunmu... Halaman ini akan <strong>otomatis update</strong> begitu selesai. Jangan tutup atau tinggalkan halaman ini!</span>
                   </div>
                 </>
               )}
@@ -218,24 +218,38 @@ export default async function TopupSuccessPage({ searchParams }: PageProps) {
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Link
-            href="/topup"
-            className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all shadow-lg flex justify-center items-center gap-2"
-          >
-            Top Up Lagi <ChevronRight className="w-4 h-4" />
-          </Link>
-          <Link
-            href="/"
-            className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
-          >
-            <Home className="w-4 h-4" /> Beranda
-          </Link>
-        </div>
+        {/* Action Buttons — hidden while PAID to prevent user from navigating away */}
+        {isWaiting ? (
+          // Lock user on page while order is processing — do NOT show navigation buttons
+          <div className="w-full py-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex flex-col items-center gap-2 text-center px-4">
+            <div className="flex items-center gap-2 text-amber-400 font-black text-sm">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              JANGAN TINGGALKAN HALAMAN INI
+            </div>
+            <p className="text-amber-400/70 text-xs leading-relaxed">
+              Sistem sedang mengirim item ke akunmu secara otomatis.<br/>
+              Halaman ini akan berubah ke <strong className="text-white">Transaksi Berhasil</strong> dalam beberapa detik.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link
+              href="/topup"
+              className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold transition-all shadow-lg flex justify-center items-center gap-2"
+            >
+              Top Up Lagi <ChevronRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/"
+              className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+            >
+              <Home className="w-4 h-4" /> Beranda
+            </Link>
+          </div>
+        )}
 
-        {/* Track Link */}
-        {orderId && (
+        {/* Track Link — only shown when fully resolved, not while processing */}
+        {orderId && !isWaiting && (
           <Link
             href={`/topup/track?orderId=${encodeURIComponent(orderId)}`}
             className="mt-4 block text-sm text-slate-600 hover:text-slate-300 transition-colors"
