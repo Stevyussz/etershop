@@ -14,7 +14,7 @@ interface AutoRefreshProps {
   intervalMs?: number;
 }
 
-export default function AutoRefresh({ orderId, intervalMs = 1500 }: AutoRefreshProps) {
+export default function AutoRefresh({ orderId, intervalMs = 3000 }: AutoRefreshProps) {
   const resolvedRef = useRef(false);
 
   useEffect(() => {
