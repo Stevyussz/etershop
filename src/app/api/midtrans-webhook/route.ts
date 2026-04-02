@@ -158,6 +158,7 @@ export async function POST(req: NextRequest) {
         data: { status: finalStatus, digiflazzNote },
       });
 
+      console.log(`[Webhook] ✅ Fulfillment completed for order ${orderId}. Final Status: ${finalStatus}.`);
       return NextResponse.json({ message: `Topup ${finalStatus}` }, { status: 200 });
 
     } else if (["cancel", "expire", "deny"].includes(transaction_status)) {

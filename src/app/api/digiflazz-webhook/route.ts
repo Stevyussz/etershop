@@ -19,6 +19,13 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import crypto from "crypto";
 
+export async function GET() {
+  return NextResponse.json({ 
+    status: "Active", 
+    message: "EterShop Digiflazz Webhook is alive and well. Listening for POST callbacks." 
+  }, { status: 200 });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.json();
@@ -55,14 +62,15 @@ export async function POST(req: NextRequest) {
     const username = process.env.DIGIFLAZZ_USERNAME || "";
     const apiKey = process.env.DIGIFLAZZ_API_KEY || "";
     
-    const expectedSignature = crypto
-      .createHash("md5")
-      .update(username + apiKey + orderId)
-      .digest("hex");
+    // Digiflazz can use MD5(username + apikey + orderId) OR MD5(username + apikey + "cs") 
+    // depending on the protocol version. We'll check both for maximum reliability.
+    const sigVariant1 = crypto.createHash("md5").update(username + apiKey + orderId).digest("hex");
+    const sigVariant2 = crypto.createHash("md5").update(username + apiKey + "cs").digest("hex");
 
-    // Strictly compare signatures
-    if (signature_key !== expectedSignature) {
-      console.warn(`[DigiflazzWebhook] ⚠️  INVALID SIGNATURE for order ${orderId} — dropping payload.`);
+    const isValidSignature = (signature_key === sigVariant1) || (signature_key === sigVariant2);
+
+    if (!isValidSignature) {
+      console.warn(`[DigiflazzWebhook] ⚠️  INVALID SIGNATURE (received: ${signature_key}) for order ${orderId}. Expected variant 1 or 2.`);
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

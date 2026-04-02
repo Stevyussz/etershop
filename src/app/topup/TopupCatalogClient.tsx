@@ -212,36 +212,43 @@ export default function TopupCatalogClient({ games, configs }: Props) {
         </div>
       </div>
 
-      {/* ── FLOATING FILTER BAR ── */}
-      <div className="container mx-auto px-4 -mt-10 md:-mt-14 max-w-7xl relative z-30">
-        <div className="bg-[#111823]/60 backdrop-blur-3xl border border-white/5 rounded-3xl p-3 md:p-4 shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
+      {/* ── SEAMLESS FILTER & SEARCH BAR (Sticky on Scroll) ── */}
+      <div className="sticky top-4 md:top-6 z-40 container mx-auto px-4 max-w-7xl mb-12 translate-y-[-20%] md:translate-y-[-50%]">
+        <div className="bg-[#111823]/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-2 md:p-3 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.9)] flex flex-col lg:flex-row gap-4 lg:items-center justify-between transition-all duration-500 border-t-white/10">
           
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 lg:py-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 lg:py-0 scroll-smooth">
             {CATEGORIES.map(({ label, icon: Icon }) => {
               const isActive = activeTab === label;
               return (
                 <button
                   key={label}
                   onClick={() => setActiveTab(label)}
-                  className={`relative px-6 py-3 rounded-2xl font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-2.5 text-sm md:text-base ${
-                    isActive ? "text-white bg-blue-600 shadow-[0_0_20px_rgba(37,99,235,0.4)]" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                  className={`relative px-5 py-2.5 rounded-xl font-bold whitespace-nowrap transition-all duration-500 flex items-center gap-2.5 text-xs md:text-sm group/btn ${
+                    isActive 
+                      ? "text-white bg-blue-600 shadow-[0_0_30px_rgba(37,99,235,0.4)]" 
+                      : "text-slate-500 hover:text-slate-200 hover:bg-white/10 border border-transparent hover:border-white/5"
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? "animate-pulse" : ""}`} />
+                  <div className={`transition-transform duration-300 ${isActive ? "scale-110" : "group-hover/btn:scale-110"}`}>
+                    <Icon className={`w-3.5 h-3.5 md:w-4 md:h-4 ${isActive ? "text-white" : "text-slate-500"}`} />
+                  </div>
                   {label}
+                  {isActive && (
+                    <motion.div layoutId="activeTabGlow" className="absolute inset-0 rounded-xl bg-blue-400/10 blur-xl -z-10" />
+                  )}
                 </button>
               );
             })}
           </div>
 
-          <div className="relative group w-full lg:w-[400px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
+          <div className="relative group w-full lg:w-[320px] xl:w-[400px]">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-400 group-focus-within:scale-110 transition-all" />
             <input
               type="text"
-              placeholder="Cari voucher game..."
+              placeholder="Cari voucher atau game..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#0a0f16]/80 border border-white/10 text-white pl-12 pr-4 py-3.5 rounded-2xl focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all text-sm md:text-base"
+              className="w-full bg-[#0a0f16]/60 border border-white/5 text-white pl-12 pr-4 py-3.5 rounded-[1.8rem] focus:outline-none focus:border-blue-500/40 focus:ring-1 focus:ring-blue-500/20 transition-all text-xs md:text-sm placeholder:text-slate-600"
             />
           </div>
         </div>

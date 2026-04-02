@@ -132,6 +132,7 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
   const [voucherDiscount, setVoucherDiscount] = useState(0);
   const [isVoucherApplied, setIsVoucherApplied] = useState(false);
   const [showHowTo, setShowHowTo] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [toastMsg, setToastMsg] = useState<{name: string, item: string} | null>(null);
 
   /** Validates the nickname with automatic failover support */
@@ -239,7 +240,12 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
 
       if (window.snap) {
         window.snap.pay(data.token, {
-          onSuccess: (result: any) => router.push(`/topup/success?order_id=${result.order_id || 'trxkustom'}`),
+          onSuccess: async (result: any) => {
+            setIsVerifying(true);
+            // Give the webhook 2 seconds to hit the DB before redirecting
+            await new Promise(r => setTimeout(r, 2000));
+            router.push(`/topup/success?order_id=${result.order_id || 'trxkustom'}`);
+          },
           onPending: (result: any) => router.push(`/topup/success?order_id=${result.order_id || 'trxkustom'}&pending=true`),
           onError: () => router.push('/topup/error'),
           onClose: () => console.log('User closed midtrans popup')
@@ -675,6 +681,23 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
              <button onClick={() => setToastMsg(null)} className="ml-2 text-slate-500 hover:text-white">
                 <X className="w-4 h-4" />
              </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* ── VERIFICATION OVERLAY ── */}
+      <AnimatePresence>
+        {isVerifying && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-[#0a0f16]/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center"
+          >
+            <div className="w-24 h-24 rounded-full bg-blue-500/10 flex items-center justify-center mb-8 relative">
+              <div className="absolute inset-0 animate-ping rounded-full border-2 border-blue-400/40 opacity-60" />
+              <ShieldCheck className="w-12 h-12 text-blue-400 animate-pulse" />
+            </div>
+            <h3 className="text-2xl md:text-3xl font-black text-white mb-3 tracking-tight">Memverifikasi Pembayaran...</h3>
+            <p className="text-slate-400 max-w-sm font-medium">Sistem sedang mensinkronkan data dengan Midtrans. Mohon tunggu sebentar.</p>
           </motion.div>
         )}
       </AnimatePresence>

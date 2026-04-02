@@ -13,7 +13,7 @@ interface AutoRefreshProps {
   intervalMs?: number;
 }
 
-export default function AutoRefresh({ intervalMs = 5000 }: AutoRefreshProps) {
+export default function AutoRefresh({ intervalMs = 3000 }: AutoRefreshProps) {
   const router = useRouter();
 
   useEffect(() => {
