@@ -13,14 +13,8 @@ import { revalidatePath } from "next/cache";
 import { getDigiflazzPriceList, type DigiflazzProduct } from "@/lib/digiflazz";
 import { calculateSellingPrice } from "@/lib/utils";
 
-/** Keywords to strictly EXCLUDE from the sync (Data packages, Utilities, etc.) */
-const EXCLUDED_KEYWORDS = [
-  "internet", "data", "pulsa", "pln", "token", "pasca", "pdam", 
-  "bpjs", "telkom", "tv", "gas", "e-money", "pajak", "grab", "gojek"
-] as const;
-
-/** Keywords used to identify game-related products from Digiflazz. */
-const GAME_KEYWORDS = ["game", "voucher", "mobile", "pc", "topup", "hiburan"] as const;
+// We allow ALL products (Pulsa, Game, E-Wallet, Token PLN, etc.) as requested.
+// EXCLUDED_KEYWORDS and GAME_KEYWORDS have been removed to allow full catalog synchronization.
 
 /** The chunk size for batched database upserts. */
 const DB_UPSERT_CHUNK_SIZE = 200;
@@ -106,35 +100,15 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct, settings: any) {
 }
 
 /**
- * Filters the raw Digiflazz product list to only include active game products.
- * Includes exclusion logic to prevent "leaking" of data/internet packages.
+ * Filters the raw Digiflazz product list to only include active products.
+ * This function now allows ALL product types (Pulsa, Token PLN, E-Wallet, Games, etc.).
  */
-function filterGameProducts(products: DigiflazzProduct[]): DigiflazzProduct[] {
+function filterActiveProducts(products: DigiflazzProduct[]): DigiflazzProduct[] {
   console.log(`[Admin] Filtering ${products.length} products from Digiflazz...`);
   
-  const filtered = products.filter((p) => {
-    const category = p.category.toLowerCase();
-    const type = p.type.toLowerCase();
-    const name = p.product_name.toLowerCase();
+  const filtered = products.filter((p) => p.seller_product_status === true);
 
-    // 1. Strict Inclusion by Digiflazz Primary Category
-    // Digiflazz correctly defines Game Vouchers as "Games" or "Voucher". 
-    // Sometimes entertainment is useful, but only if we explicitely define it to avoid false positives.
-    const isGameCategory = category === "games" || category === "voucher";
-    
-    // 2. Exclusion (Blacklist) to cover corner cases where Digiflazz categorization leaks
-    const isExcluded = EXCLUDED_KEYWORDS.some(kw => 
-      category.includes(kw) || type.includes(kw) || name.includes(kw)
-    );
-    if (isExcluded) return false;
-
-    // 3. Fallback Keyword Matching if it's not strictly "Games" or "Voucher"
-    const isGameRelated = isGameCategory || GAME_KEYWORDS.some(kw => category.includes(kw) || type.includes(kw));
-
-    return isGameRelated && p.seller_product_status === true;
-  });
-
-  console.log(`[Admin] Found ${filtered.length} matching game products.`);
+  console.log(`[Admin] Found ${filtered.length} matching active products.`);
   return filtered;
 }
 
@@ -174,11 +148,11 @@ export async function runDigiflazzSync(): Promise<{ success: boolean; message: s
        throw new Error("Gagal mengambil data dari Digiflazz (Data Kosong).");
     }
 
-    const gameProducts = filterGameProducts(allProducts);
-    if (gameProducts.length === 0) {
+    const activeProducts = filterActiveProducts(allProducts);
+    if (activeProducts.length === 0) {
       return {
         success: false,
-        message: "Tidak ada produk game yang ditemukan. Cek filter pencarian Anda.",
+        message: "Tidak ada produk aktif yang ditemukan di Digiflazz.",
       };
     }
 
@@ -188,8 +162,8 @@ export async function runDigiflazzSync(): Promise<{ success: boolean; message: s
     let syncedCount = 0;
     
     // Process chunks to limit concurrent DB connections preventing pool exhaustion
-    for (let i = 0; i < gameProducts.length; i += DB_UPSERT_CHUNK_SIZE) {
-      const chunk = gameProducts.slice(i, i + DB_UPSERT_CHUNK_SIZE);
+    for (let i = 0; i < activeProducts.length; i += DB_UPSERT_CHUNK_SIZE) {
+      const chunk = activeProducts.slice(i, i + DB_UPSERT_CHUNK_SIZE);
       const chunkOps = chunk.map((p) => {
         const mapped = mapDigiflazzProductForDB(p, settings);
         return prisma.topupProduct.upsert(mapped).catch((err) => {
@@ -205,7 +179,7 @@ export async function runDigiflazzSync(): Promise<{ success: boolean; message: s
     // Step 2: Intelligent Deactivation
     // Deactivate products that no longer exist in the total sync batch.
     // For large catalogs, we do this in batches if needed.
-    const activeSkus = gameProducts.map((p) => p.buyer_sku_code);
+    const activeSkus = activeProducts.map((p) => p.buyer_sku_code);
     const deactivatedResult = await prisma.topupProduct.updateMany({
       where: {
         sku: { notIn: activeSkus },
