@@ -25,11 +25,13 @@ import {
   Settings,
   Ticket,
   TrendingUp,
+  ShoppingCart,
 } from "lucide-react";
 
 const NAV_LINKS = [
   { name: "Overview", href: "/admin", icon: LayoutDashboard },
   { name: "Transaksi", href: "/admin/transactions", icon: Receipt },
+  { name: "Kasir (POS Manual)", href: "/admin/pos", icon: ShoppingCart },
   { name: "Branding Game", href: "/admin/games", icon: Gamepad2 },
   { name: "Daftar Produk", href: "/admin/products", icon: Settings },
   { name: "Voucher Promo", href: "/admin/vouchers", icon: Ticket },

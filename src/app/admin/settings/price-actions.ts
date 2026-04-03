@@ -127,19 +127,21 @@ export async function applyPricingTarget(
       return { success: false, message: "Tidak ada produk ditemukan untuk target ini." };
     }
 
-    // 4. Batch update (200 per transaction to avoid DB timeout)
+    // 4. Batch update (200 per chunk to avoid DB pool exhaustion)
     const CHUNK = 200;
     let updated = 0;
     for (let i = 0; i < products.length; i += CHUNK) {
       const chunk = products.slice(i, i + CHUNK);
-      await prisma.$transaction(
-        chunk.map((p) =>
-          prisma.topupProduct.update({
-            where: { id: p.id },
-            data: { price: calculateDynamicPrice(p.originalPrice, settings) },
-          })
-        )
+      const updates = chunk.map((p) =>
+        prisma.topupProduct.update({
+          where: { id: p.id },
+          data: { price: calculateDynamicPrice(p.originalPrice, settings) },
+        }).catch((e) => {
+          console.warn(`Failed to update price for product ${p.id}:`, e.message);
+        })
       );
+      
+      await Promise.all(updates);
       updated += chunk.length;
     }
 

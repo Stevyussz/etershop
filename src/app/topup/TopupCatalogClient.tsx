@@ -101,6 +101,11 @@ export default function TopupCatalogClient({ games, configs }: Props) {
         // Map Digiflazz category to UI Label ONLY IF admin hasn't set a manual override
         let uiCtg: string = config?.category as string;
         
+        // Handle legacy manual overrides (Mobile/PC)
+        if (uiCtg === "Mobile" || uiCtg === "PC") {
+          uiCtg = "Games";
+        }
+        
         if (!uiCtg) {
           const rawCtg = g.category || "Games";
           if (rawCtg === "Pulsa") uiCtg = "Pulsa & Data";
