@@ -26,7 +26,7 @@ interface BrandData {
   } | null;
 }
 
-const CATEGORIES = ["Mobile", "PC", "Voucher", "Lainnya"];
+const CATEGORIES = ["Games", "Pulsa & Data", "Token PLN", "E-Wallet", "Voucher", "Lainnya"];
 
 export default function GameBrandingClient({ initialBrands }: { initialBrands: any[] }) {
   const [search, setSearch] = useState("");
@@ -48,7 +48,7 @@ export default function GameBrandingClient({ initialBrands }: { initialBrands: a
         brand: editingBrand.brand,
         title: editingBrand.config?.title || editingBrand.brand,
         imageUrl: editingBrand.config?.imageUrl || "",
-        category: editingBrand.config?.category || "Mobile",
+        category: editingBrand.config?.category || "Games",
         isPopular: editingBrand.config?.isPopular || false,
       });
 
@@ -206,7 +206,7 @@ export default function GameBrandingClient({ initialBrands }: { initialBrands: a
                         Kategori
                       </label>
                       <select 
-                        value={editingBrand.config?.category || "Mobile"}
+                        value={editingBrand.config?.category || "Games"}
                         onChange={(e) => setEditingBrand({
                           ...editingBrand,
                           config: { ...(editingBrand.config || {}), category: e.target.value }

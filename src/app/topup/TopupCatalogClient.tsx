@@ -98,15 +98,17 @@ export default function TopupCatalogClient({ games, configs }: Props) {
       const slug = slugifyBrand(g.brand);
       
       if (!seen.has(slug)) {
-        // Map Digiflazz category to UI Label
-        let uiCtg: string = "Games";
-        const rawCtg = g.category || "Games";
+        // Map Digiflazz category to UI Label ONLY IF admin hasn't set a manual override
+        let uiCtg: string = config?.category as string;
         
-        if (rawCtg === "Pulsa") uiCtg = "Pulsa & Data";
-        else if (rawCtg === "PLN") uiCtg = "Token PLN";
-        else if (rawCtg === "E-Money") uiCtg = "E-Wallet";
-        else if (rawCtg === "Voucher") uiCtg = "Voucher";
-        else uiCtg = "Games";
+        if (!uiCtg) {
+          const rawCtg = g.category || "Games";
+          if (rawCtg === "Pulsa") uiCtg = "Pulsa & Data";
+          else if (rawCtg === "PLN") uiCtg = "Token PLN";
+          else if (rawCtg === "E-Money") uiCtg = "E-Wallet";
+          else if (rawCtg === "Voucher") uiCtg = "Voucher";
+          else uiCtg = "Games";
+        }
 
         seen.set(slug, {
           brand: g.brand,
