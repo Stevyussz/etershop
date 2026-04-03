@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Plus_Jakarta_Sans, Orbitron } from 'next/font/google'
+import { Plus_Jakarta_Sans, Unbounded } from 'next/font/google'
 import './globals.css'
 import ConditionalLayout from '@/components/layout/ConditionalLayout'
 import prisma from '@/lib/prisma'
@@ -10,7 +10,8 @@ const font = Plus_Jakarta_Sans({
   display: 'swap',
 })
 
-const cyberFont = Orbitron({
+const cyberFont = Unbounded({
+  weight: '900',
   subsets: ['latin'],
   variable: '--font-cyber',
   display: 'swap',

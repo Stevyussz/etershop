@@ -154,3 +154,18 @@
 .cyber-glow {
   text-shadow: 0 0 10px rgba(34, 211, 238, 0.5), 0 0 20px rgba(34, 211, 238, 0.2);
 }
+
+/* Specialized Cyber-Abstract Typography */
+.cyber-abstract {
+  font-family: var(--font-cyber), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: -0.05em;
+  transform: skewX(-15deg);
+  display: inline-block;
+  line-height: 0.8;
+  filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.4));
+}
+
+.cyber-glow-intense {
+  text-shadow: 0 0 15px rgba(34, 211, 238, 0.6), 0 0 30px rgba(34, 211, 238, 0.3);
+}
