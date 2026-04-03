@@ -7,6 +7,7 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { verifyAdmin } from "@/lib/auth";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ function calculateDynamicPrice(cost: number, settings: any): number {
 /** Fetches only the 4 pricing fields — serialized, safe for Client Components */
 export async function getPriceSettings() {
   try {
+    await verifyAdmin();
     const s = await prisma.siteSettings.findUnique({
       where: { id: "main" },
       select: {
@@ -62,6 +64,7 @@ export async function getPriceSettings() {
  */
 export async function updatePriceSettings(data: any) {
   try {
+    await verifyAdmin();
     const payload = {
       globalMarkupType: String(data.globalMarkupType ?? "TIERED"),
       globalMarkupPercent: Number(data.globalMarkupPercent ?? 5),
@@ -101,6 +104,7 @@ export async function applyPricingTarget(
   target?: string
 ): Promise<{ success: boolean; message: string }> {
   try {
+    await verifyAdmin();
     // 1. Load current pricing settings
     const settings = await prisma.siteSettings.findUnique({
       where: { id: "main" },

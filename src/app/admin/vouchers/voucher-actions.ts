@@ -7,10 +7,12 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { verifyAdmin } from "@/lib/auth";
 
 /** Fetches all vouchers sorted by creation date, serialized for Client Components */
 export async function getVouchers() {
   try {
+    await verifyAdmin();
     const vouchers = await prisma.voucher.findMany({
       orderBy: { createdAt: "desc" }
     });
@@ -25,6 +27,7 @@ export async function getVouchers() {
 /** Creates or updates a voucher */
 export async function upsertVoucher(data: any) {
   try {
+    await verifyAdmin();
     const { id, createdAt, updatedAt, ...rest } = data;
     
     // Auto-trim and uppercase code to prevent whitespace mismatch bugs
@@ -75,6 +78,7 @@ export async function upsertVoucher(data: any) {
 /** Deletes a voucher */
 export async function deleteVoucher(id: string) {
   try {
+    await verifyAdmin();
     await prisma.voucher.delete({ where: { id } });
     revalidatePath("/admin/vouchers");
     return { success: true };

@@ -135,6 +135,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.refresh();
   };
 
+  const isLoginPage = pathname === "/admin/login";
+
+  if (isLoginPage) {
+    return (
+      <div className="min-h-screen bg-[#0a0f16] flex items-center justify-center p-4">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-[#0a0f16] text-slate-200">
       {/* ── DESKTOP SIDEBAR ── */}

@@ -3,6 +3,7 @@
 import prisma from "@/lib/prisma";
 import { executeDigiflazzTopup } from "@/lib/digiflazz";
 import { revalidatePath } from "next/cache";
+import { verifyAdmin } from "@/lib/auth";
 
 /**
  * Executes a manual cash order via POS bypassing Midtrans.
@@ -13,6 +14,9 @@ import { revalidatePath } from "next/cache";
  */
 export async function manualCreatePosOrder(sku: string, customerNo: string) {
   try {
+    // 0. Security Check
+    await verifyAdmin();
+
     if (!sku || !customerNo) {
       return { success: false, message: "SKU Produk dan ID Tujuan wajib diisi." };
     }
@@ -31,6 +35,12 @@ export async function manualCreatePosOrder(sku: string, customerNo: string) {
 
     // 2. Generate Internal Order ID
     const orderId = `POS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    // Idempotency: Verify uniqueness before proceeding (extremely rare but good practice)
+    const existingOrder = await prisma.topupTransaction.findUnique({ where: { orderId } });
+    if (existingOrder) {
+       return { success: false, message: "Collision detect: Order ID sudah ada. Silakan coba lagi dlm 1 detik." };
+    }
 
     // 3. Hit Digiflazz
     let digiResult;

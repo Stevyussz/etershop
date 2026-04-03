@@ -12,6 +12,7 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getDigiflazzPriceList, type DigiflazzProduct } from "@/lib/digiflazz";
 import { calculateSellingPrice } from "@/lib/utils";
+import { verifyAdmin } from "@/lib/auth";
 
 // We allow ALL products (Pulsa, Game, E-Wallet, Token PLN, etc.) as requested.
 // EXCLUDED_KEYWORDS and GAME_KEYWORDS have been removed to allow full catalog synchronization.
@@ -137,6 +138,9 @@ export async function toggleProductStatus(id: string, currentStatus: boolean) {
  */
 export async function runDigiflazzSync(): Promise<{ success: boolean; message: string }> {
   try {
+    // 0. Security Check
+    await verifyAdmin();
+
     console.log("[Admin Sync] Starting full Digiflazz synchronization...");
     
     // Step 0: Fetch global pricing settings

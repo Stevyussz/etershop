@@ -4,7 +4,8 @@ import prisma from '@/lib/prisma'
 import { Badge } from '@/components/ui/badge'
 import {
   ShoppingCart, Server, Palette, Layers, ArrowRight,
-  ShieldCheck, Zap, MessageCircle, Star, Users, Clock
+  ShieldCheck, Zap, MessageCircle, Star, Users, Clock,
+  Gamepad2, Smartphone, Wallet
 } from 'lucide-react'
 import { RamadhanSection } from '@/components/home/RamadhanSection'
 import { CountdownTimer } from '@/components/ui/CountdownTimer'
@@ -111,14 +112,14 @@ export default async function Home() {
           </Badge>
 
           <h1 className="mx-auto max-w-5xl text-5xl font-extrabold tracking-tight text-white sm:text-7xl lg:text-[5.5rem] leading-[1.08]">
-            Empowering Your{' '}
+            Your Premium{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400">
-              Digital World
+              Digital Hub
             </span>
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-base text-slate-400 md:text-lg leading-relaxed px-4">
-            Destinasi terpercaya untuk Server Minecraft, Skin Kustom, Desain Kreatif, dan Website Modern. Kualitas premium dengan harga yang bersahabat bagi kantong pelajar.
+            Solusi terlengkap untuk Top Up Games Instan, PPOB, Server Minecraft, dan Jasa Kreatif. Kualitas bintang lima dengan harga ramah kantong pelajar.
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -156,7 +157,71 @@ export default async function Home() {
           </div>
         </div>
       </section>
+      
+      {/* ── PPOB & TOPUP BRANDING ── */}
+      <section className="py-24 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#080d18] via-cyan-950/10 to-[#080d18]" />
+        <div className="container relative z-10 mx-auto px-4">
+          <div className="mb-16 text-center">
+            <Badge variant="outline" className="mb-4 border-emerald-500/20 bg-emerald-500/5 text-emerald-400 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest">
+              Layanan PPOB & Top Up
+            </Badge>
+            <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight">Kebutuhan Digital <span className="text-cyan-400">Serba Instan</span></h2>
+            <p className="mt-4 text-slate-400 text-lg max-w-2xl mx-auto">
+              Proses otomatis 24 jam dengan harga termurah. Saldo masuk dalam hitungan detik setelah pembayaran berhasil.
+            </p>
+          </div>
 
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+            {[
+              { 
+                title: "Top Up Game", 
+                desc: "Diamond, UC, & Gems", 
+                icon: Gamepad2, 
+                color: "from-blue-500 to-indigo-600",
+                shadow: "shadow-blue-500/20"
+              },
+              { 
+                title: "Pulsa & Data", 
+                desc: "Seluruh Operator", 
+                icon: Smartphone, 
+                color: "from-rose-500 to-orange-500",
+                shadow: "shadow-rose-500/20"
+              },
+              { 
+                title: "Token PLN", 
+                desc: "Listrik 24 Jam", 
+                icon: Zap, 
+                color: "from-yellow-500 to-amber-600",
+                shadow: "shadow-yellow-500/20"
+              },
+              { 
+                title: "E-Wallet", 
+                desc: "Top Up Saldo Instan", 
+                icon: Wallet, 
+                color: "from-emerald-500 to-teal-600",
+                shadow: "shadow-emerald-500/20"
+              }
+            ].map((item, idx) => (
+              <Link 
+                key={idx} 
+                href="/topup"
+                className={`group relative p-8 rounded-[2.5rem] bg-[#0c1526] border border-white/5 overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:border-white/10 ${item.shadow} hover:shadow-2xl`}
+              >
+                <div className={`absolute -top-10 -right-10 w-32 h-32 bg-gradient-to-br ${item.color} opacity-10 group-hover:opacity-20 blur-2xl transition-opacity animate-pulse`} />
+                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center text-white mb-6 shadow-lg rotate-3 group-hover:rotate-0 transition-transform duration-500`}>
+                  <item.icon className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-black text-white mb-2">{item.title}</h3>
+                <p className="text-slate-500 text-sm font-medium leading-relaxed">{item.desc}</p>
+                <div className="mt-6 flex items-center gap-2 text-xs font-black text-white/40 group-hover:text-white transition-colors uppercase tracking-widest">
+                  Mulai Sekarang <ArrowRight className="w-4 h-4" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ── Features ── */}
       <section className="py-24 bg-[#080d18] border-t border-cyan-500/10">

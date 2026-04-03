@@ -7,6 +7,7 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { verifyAdmin } from "@/lib/auth";
 
 /**
  * Fetches all unique brands currently present in the TopupProduct table,
@@ -14,6 +15,7 @@ import { revalidatePath } from "next/cache";
  */
 export async function getGameBrandsWithConfigs() {
   try {
+    await verifyAdmin();
     // 1. Get all unique brands from products
     const brands = await prisma.topupProduct.findMany({
       select: { brand: true },
@@ -49,6 +51,7 @@ export async function upsertGameConfig(data: {
   isPopular?: boolean;
 }) {
   try {
+    await verifyAdmin();
     const { brand, ...rest } = data;
 
     const result = await prisma.gameConfig.upsert({

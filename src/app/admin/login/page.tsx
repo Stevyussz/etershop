@@ -147,9 +147,9 @@ function LoginForm() {
         </form>
 
         <p className="text-center text-xs text-slate-600 mt-6">
-          Lupa password? Ubah melalui variabel{" "}
-          <code className="font-mono text-slate-500">ADMIN_PASSWORD</code> di file{" "}
-          <code className="font-mono text-slate-500">.env</code>
+          Lupa password? Lu siapa jingg?{" "}
+          <code className="font-mono text-slate-500">Data Session lu udah gw pegang</code> di file{" "}
+          <code className="font-mono text-slate-500">aowkoakwoakwo</code>
         </p>
       </motion.div>
     </div>
