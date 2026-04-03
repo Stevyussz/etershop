@@ -112,11 +112,15 @@ export default async function Home() {
           </Badge>
 
           <h1 className="mx-auto max-w-5xl text-5xl font-extrabold tracking-tight text-white sm:text-7xl lg:text-[5.5rem] leading-[1.08]">
-            Your Premium{' '}
+            Empowering Your{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400">
-              Digital Hub
+              Digital World
             </span>
           </h1>
+
+          <div className="mt-4 cyber-font cyber-glow text-cyan-400 font-bold tracking-[0.2em] text-sm md:text-base animate-pulse">
+            Teraman, Termurah Se-Isekai.
+          </div>
 
           <p className="mx-auto mt-6 max-w-2xl text-base text-slate-400 md:text-lg leading-relaxed px-4">
             Solusi terlengkap untuk Top Up Games Instan, PPOB, Server Minecraft, dan Jasa Kreatif. Kualitas bintang lima dengan harga ramah kantong pelajar.

@@ -20,8 +20,8 @@ export async function generateMetadata(props: { params: Promise<{ game: string }
   
   const title = matchedBrand || "Game";
   return {
-    title: `Topup ${title} - Cepat & Murah | EterShop`,
-    description: `Beli Diamond ${title} instan via QRIS, GoPay, dan DANA. Harga termurah dan proses otomatis 1 detik.`,
+    title: `Topup ${title} Murah - Tercepat Se-Isekai | EterTopup`,
+    description: `Beli Diamond ${title} paling aman dan termurah se-isekai di EterTopup. Proses instan 1 detik otomatis 24 jam.`,
   };
 }
 
@@ -69,7 +69,7 @@ export default async function GameTopupPage(props: { params: Promise<{ game: str
     '@type': 'Product',
     name: `Topup ${matchedBrand}`,
     image: gameConfig?.imageUrl || 'https://etershop.vercel.app/logo.jpg',
-    description: `Beli Diamond/Voucher ${matchedBrand} termurah dan tercepat hanya di EterShop. Proses otomatis 24 jam.`,
+    description: `Topup ${matchedBrand} Teraman, Termurah Se-Isekai. Proses otomatis 24 jam hanya di EterTopup.`,
     brand: {
       '@type': 'Brand',
       name: matchedBrand,
