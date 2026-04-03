@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import ProductDashboardClient from "./ProductDashboardClient";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export default async function AdminProductsPage() {
   let products: any[] = [];

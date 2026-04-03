@@ -58,17 +58,34 @@ function calculateDynamicPrice(cost: number, settings: any) {
 }
 
 /**
+ * Title cases a string gracefully (e.g., "MOBILE LEGENDS" -> "Mobile Legends")
+ */
+function toTitleCase(str: string): string {
+  return str.replace(
+    /\w\S*/g,
+    function(txt) {
+      if (txt.toUpperCase() === "PC") return "PC";
+      if (txt.toUpperCase() === "PUBG") return "PUBG";
+      return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+    }
+  );
+}
+
+/**
  * Transforms a raw Digiflazz product object into the shape needed by our database.
  */
 function mapDigiflazzProductForDB(p: DigiflazzProduct, settings: any) {
   const originalPrice = p.price;
   const sellingPrice = calculateDynamicPrice(originalPrice, settings);
+  
+  // Format the brand nicely for accurate grouping in storefront/admin
+  const aestheticBrand = toTitleCase(p.brand);
 
   return {
     where: { sku: p.buyer_sku_code },
     update: {
       name: p.product_name,
-      brand: p.brand,
+      brand: aestheticBrand,
       category: p.category,
       type: p.type,
       originalPrice,
@@ -78,7 +95,7 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct, settings: any) {
     create: {
       sku: p.buyer_sku_code,
       name: p.product_name,
-      brand: p.brand,
+      brand: aestheticBrand,
       category: p.category,
       type: p.type,
       originalPrice,
@@ -100,16 +117,19 @@ function filterGameProducts(products: DigiflazzProduct[]): DigiflazzProduct[] {
     const type = p.type.toLowerCase();
     const name = p.product_name.toLowerCase();
 
-    // 1. Check for exclusions (Blacklist)
+    // 1. Strict Inclusion by Digiflazz Primary Category
+    // Digiflazz correctly defines Game Vouchers as "Games" or "Voucher". 
+    // Sometimes entertainment is useful, but only if we explicitely define it to avoid false positives.
+    const isGameCategory = category === "games" || category === "voucher";
+    
+    // 2. Exclusion (Blacklist) to cover corner cases where Digiflazz categorization leaks
     const isExcluded = EXCLUDED_KEYWORDS.some(kw => 
       category.includes(kw) || type.includes(kw) || name.includes(kw)
     );
     if (isExcluded) return false;
 
-    // 2. Check for inclusions (Whitelist)
-    const isGameRelated = 
-      GAME_KEYWORDS.some(kw => category.includes(kw) || type.includes(kw)) ||
-      (category === "hiburan");
+    // 3. Fallback Keyword Matching if it's not strictly "Games" or "Voucher"
+    const isGameRelated = isGameCategory || GAME_KEYWORDS.some(kw => category.includes(kw) || type.includes(kw));
 
     return isGameRelated && p.seller_product_status === true;
   });
@@ -162,17 +182,23 @@ export async function runDigiflazzSync(): Promise<{ success: boolean; message: s
       };
     }
 
-    // Step 1: Batched Upserts to prevent memory issues
+    // Step 1: Batched Upserts without Prisma $transaction mapping
+    // We execute upsert concurrency manually to completely bypass the 5-second Prisma
+    // transaction timeout mechanism, which is what causes the "aborted" error during massive chunk syncs.
     let syncedCount = 0;
+    
+    // Process chunks to limit concurrent DB connections preventing pool exhaustion
     for (let i = 0; i < gameProducts.length; i += DB_UPSERT_CHUNK_SIZE) {
       const chunk = gameProducts.slice(i, i + DB_UPSERT_CHUNK_SIZE);
       const chunkOps = chunk.map((p) => {
         const mapped = mapDigiflazzProductForDB(p, settings);
-        return prisma.topupProduct.upsert(mapped);
+        return prisma.topupProduct.upsert(mapped).catch((err) => {
+           console.warn(`[Admin Sync] Failed to upsert ${p.buyer_sku_code}:`, err.message);
+        });
       });
       
-      console.log(`[Admin Sync] Syncing chunk ${Math.floor(i / DB_UPSERT_CHUNK_SIZE) + 1}...`);
-      await prisma.$transaction(chunkOps);
+      console.log(`[Admin Sync] Syncing chunk ${Math.floor(i / DB_UPSERT_CHUNK_SIZE) + 1} (${chunk.length} items)...`);
+      await Promise.all(chunkOps);
       syncedCount += chunk.length;
     }
 
