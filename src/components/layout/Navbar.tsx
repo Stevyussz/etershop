@@ -45,8 +45,8 @@ export function Navbar() {
             <div className="relative h-8 w-8 overflow-hidden rounded-lg ring-1 ring-cyan-500/30">
               <Image src="/logo.jpg" alt="Etershop Logo" fill className="object-cover" />
             </div>
-            <span className="font-extrabold text-xl tracking-tight text-white flex items-center">
-              Eter<span className="script-font soft-glow bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-emerald-400 ml-1">Topup</span>
+            <span className="font-extrabold text-xl tracking-tight text-white">
+              Eter<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400">Shop</span>
             </span>
           </Link>
 

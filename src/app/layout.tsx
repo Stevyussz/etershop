@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Plus_Jakarta_Sans, Unbounded, Qwigley } from 'next/font/google'
+import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import ConditionalLayout from '@/components/layout/ConditionalLayout'
 import prisma from '@/lib/prisma'
@@ -10,29 +10,15 @@ const font = Plus_Jakarta_Sans({
   display: 'swap',
 })
 
-const cyberFont = Unbounded({
-  weight: '900',
-  subsets: ['latin'],
-  variable: '--font-cyber',
-  display: 'swap',
-})
-
-const scriptFont = Qwigley({
-  weight: '400',
-  subsets: ['latin'],
-  variable: '--font-script',
-  display: 'swap',
-})
-
 export const metadata: Metadata = {
   metadataBase: new URL('https://etershop.vercel.app'),
   title: {
-    default: 'EterTopup | Teraman, Termurah Se-Isekai',
-    template: '%s | EterTopup'
+    default: 'EterShop | Teraman, Termurah Se-Isekai',
+    template: '%s | EterShop'
   },
-  description: 'EterTopup adalah platform topup termurah se-isekai: Diamond FF, ML, Voucher Game, dan PPOB Instan 1 detik. Terpercaya, aman, dan bergaransi.',
+  description: 'EterShop adalah platform digital termurah se-isekai: Diamond FF, ML, Voucher Game, dan PPOB Instan 1 detik. Terpercaya, aman, dan bergaransi.',
   keywords: [
-    'etertopup', 'etershop', 'topup game termurah', 'topup game isekai', 'diamond ff termurah', 
+    'etershop', 'topup game termurah', 'topup game isekai', 'diamond ff termurah', 
     'diamond ml termurah', 'token pln murah', 'pulsa murah 24 jam', 'topup game instan'
   ],
   authors: [{ name: 'EterShop Team' }],
@@ -44,18 +30,18 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: 'EterTopup — Teraman, Termurah Se-Isekai',
+    title: 'EterShop — Teraman, Termurah Se-Isekai',
     description: 'Topup Game & PPOB Tercepat dengan harga paling miring se-jagad raya. Proses otomatis 1 detik 24 jam.',
     url: 'https://etershop.vercel.app',
-    siteName: 'EterTopup',
-    images: [{ url: '/logo.jpg', width: 1200, height: 630, alt: 'EterTopup Branding' }],
+    siteName: 'EterShop',
+    images: [{ url: '/logo.jpg', width: 1200, height: 630, alt: 'EterShop Branding' }],
     locale: 'id_ID',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'EterTopup | Teraman, Termurah Se-Isekai',
-    description: 'Beli Diamond/Voucher Game termurah dan tercepat hanya di EterTopup.',
+    title: 'EterShop | Teraman, Termurah Se-Isekai',
+    description: 'Beli Diamond/Voucher Game termurah dan tercepat hanya di EterShop.',
     images: ['/logo.jpg'],
   },
   icons: {
@@ -95,7 +81,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="id" className="dark scroll-smooth">
-      <body className={`${font.variable} ${cyberFont.variable} ${scriptFont.variable} font-sans bg-[#080d18] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200 antialiased`}>
+      <body className={`${font.variable} font-sans bg-[#080d18] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200 antialiased`}>
          <ConditionalLayout settings={settings}>
             {children}
          </ConditionalLayout>
