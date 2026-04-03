@@ -169,3 +169,17 @@
 .cyber-glow-intense {
   text-shadow: 0 0 15px rgba(34, 211, 238, 0.6), 0 0 30px rgba(34, 211, 238, 0.3);
 }
+
+/* Elegant Signature Typography (Qwigley) */
+.script-font {
+  font-family: var(--font-script), cursive;
+  font-size: 1.5em;
+  font-weight: 400;
+  display: inline-block;
+  line-height: 0.6;
+  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.3));
+}
+
+.soft-glow {
+  text-shadow: 0 0 10px rgba(34, 211, 238, 0.4), 0 0 20px rgba(34, 211, 238, 0.1);
+}

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Plus_Jakarta_Sans, Unbounded } from 'next/font/google'
+import { Plus_Jakarta_Sans, Unbounded, Qwigley } from 'next/font/google'
 import './globals.css'
 import ConditionalLayout from '@/components/layout/ConditionalLayout'
 import prisma from '@/lib/prisma'
@@ -14,6 +14,13 @@ const cyberFont = Unbounded({
   weight: '900',
   subsets: ['latin'],
   variable: '--font-cyber',
+  display: 'swap',
+})
+
+const scriptFont = Qwigley({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-script',
   display: 'swap',
 })
 
@@ -88,7 +95,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="id" className="dark scroll-smooth">
-      <body className={`${font.variable} ${cyberFont.variable} font-sans bg-[#080d18] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200 antialiased`}>
+      <body className={`${font.variable} ${cyberFont.variable} ${scriptFont.variable} font-sans bg-[#080d18] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200 antialiased`}>
          <ConditionalLayout settings={settings}>
             {children}
          </ConditionalLayout>
