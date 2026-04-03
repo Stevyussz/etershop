@@ -129,15 +129,14 @@ export default function TopupCatalogClient({ games, configs }: Props) {
   }, [allGames, activeTab, searchQuery]);
 
   // Helper render for single item (used in grid OR horizontal row)
-  const renderItem = (game: GameMeta, idx: number) => (
+  const renderItem = (game: GameMeta, idx: number, isCarousel = false) => (
     <motion.div
       key={game.slug}
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
+      initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.8 }}
-      transition={{ duration: 0.3, delay: Math.min(idx * 0.03, 0.2) }}
-      className="shrink-0 w-[140px] sm:w-[160px] md:w-[200px] h-full"
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
+      className={`shrink-0 w-[140px] sm:w-[160px] md:w-[200px] h-full ${isCarousel ? 'snap-start' : ''}`}
     >
       <Link href={`/topup/${game.slug}`} className="block group h-full">
         <div className="relative aspect-[3/4] w-full h-full rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden bg-[#111823] border border-white/[0.03] shadow-2xl transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_20px_40px_-10px_rgba(59,130,246,0.3)] group-hover:border-blue-500/30">
@@ -259,7 +258,7 @@ export default function TopupCatalogClient({ games, configs }: Props) {
 
       {/* ── SEAMLESS FILTER & SEARCH BAR ── */}
       <div className="container mx-auto px-4 max-w-7xl mt-12 mb-12">
-        <div className="bg-[#111823]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-4 md:p-6 shadow-2xl flex flex-col lg:flex-row gap-6 lg:items-center justify-between transition-all duration-300">
+        <div className="bg-[#111823]/95 md:bg-[#111823]/90 md:backdrop-blur-xl border border-white/10 rounded-3xl p-4 md:p-6 shadow-2xl flex flex-col lg:flex-row gap-6 lg:items-center justify-between transition-all duration-300">
           
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 lg:py-0 scroll-smooth">
             {CATEGORIES.map(({ label, icon: Icon }) => {
@@ -320,13 +319,9 @@ export default function TopupCatalogClient({ games, configs }: Props) {
                        </div>
                        
                        <div className="flex overflow-x-auto gap-4 md:gap-6 pb-8 snap-x snap-mandatory no-scrollbar px-2 styled-scrollbars-hidden">
-                          <AnimatePresence mode="popLayout">
                              {items.map((game, idx) => (
-                               <div key={game.slug} className="snap-start">
-                                 {renderItem(game, idx)}
-                               </div>
+                                renderItem(game, idx, true)
                              ))}
-                          </AnimatePresence>
                        </div>
                     </div>
                   );
@@ -347,14 +342,11 @@ export default function TopupCatalogClient({ games, configs }: Props) {
               </div>
 
               <motion.div
-                layout
                 className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-6 lg:gap-8 auto-rows-fr"
               >
-                <AnimatePresence mode="popLayout">
+                <AnimatePresence>
                   {filteredGames.map((game, idx) => (
-                    <div key={game.slug} className="h-full">
-                       {renderItem(game, idx)}
-                    </div>
+                      renderItem(game, idx, false)
                   ))}
                 </AnimatePresence>
               </motion.div>
