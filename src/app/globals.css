@@ -143,3 +143,13 @@
     background: #06b6d4;
   }
 }
+
+/* Shimmer loading animation for skeletons */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+}

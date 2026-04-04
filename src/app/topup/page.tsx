@@ -16,16 +16,33 @@ import type { Metadata } from "next";
 export const revalidate = 60; // ISR: re-fetch data at most once per minute
 
 export const metadata: Metadata = {
-  title: "Top Up Game — Murah & Instan | EterShop",
+  title: "Top Up Game & PPOB Termurah — Teraman Se-Isekai | EterShop",
   description:
-    "Top up game favoritmu — Mobile Legends, Free Fire, Valorant, dan banyak lagi. Harga terbaik, proses otomatis 1 detik via QRIS, GoPay, DANA & ShopeePay.",
-  keywords: "top up game, beli diamond, topup ml, topup ff, topup valorant, QRIS game",
+    "Top up game favoritmu sekarang! Mobile Legends, Free Fire, Valorant, Token PLN, Pulsa, E-Wallet — harga paling murah se-isekai. Proses otomatis 1 detik, 24 jam, via QRIS, GoPay, DANA & ShopeePay.",
+  keywords: [
+    "top up game termurah", "beli diamond ml murah", "topup ff murah", "topup valorant murah",
+    "token pln instan", "pulsa murah semua operator", "top up ewallet", "topup gopay murah",
+    "topup dana murah", "topup shopeepay murah", "isi pulsa online", "teraman termurah isekai",
+    "EterShop topup", "beli diamond online", "top up game 1 detik", "PPOB instan online"
+  ],
   openGraph: {
-    title: "Top Up Game — EterShop",
-    description: "Platform top up game terpercaya. Murah, cepat, aman.",
+    title: "Top Up Game & PPOB — Teraman, Termurah Se-Isekai | EterShop",
+    description: "Platform top up terpercaya. Mario, ML, FF, PLN, Pulsa, E-Wallet — harga paling miring se-jagad. Proses otomatis 1 detik.",
     type: "website",
+    url: "https://etershop.vercel.app/topup",
+    images: [{ url: "/logo.jpg", width: 1200, height: 630, alt: "EterShop Top Up PPOB" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Top Up & PPOB Termurah Se-Isekai | EterShop",
+    description: "Topup game, PLN, Pulsa, E-Wallet paling murah dan instan. Cuma di EterShop!",
+    images: ["/logo.jpg"],
+  },
+  alternates: {
+    canonical: "https://etershop.vercel.app/topup",
   },
 };
+
 
 export default async function TopupPage() {
   let brands: { brand: string }[] = [];
