@@ -15,7 +15,8 @@
 import Link from "next/link";
 import {
   CheckCircle2, ChevronRight, Home, TicketCheck,
-  Clock, XCircle, Zap, RefreshCcw, AlertTriangle
+  Clock, XCircle, Zap, RefreshCcw, AlertTriangle,
+  MessageSquare, Phone
 } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { formatRupiah, formatDate } from "@/lib/utils";
@@ -196,13 +197,33 @@ export default async function TopupSuccessPage({ searchParams }: PageProps) {
                 </>
               )}
 
-              {/* FAILED — error message */}
-              {isFailed && transaction.digiflazzNote && (
+              {/* FAILED — error message & CS link */}
+              {isFailed && (
                 <>
                   <div className="h-px bg-white/5" />
-                  <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2.5 rounded-xl">
-                    <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-                    <span>{transaction.digiflazzNote}</span>
+                  <div className="mt-4 flex flex-col gap-4">
+                    <div className="flex items-start gap-3 text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-3 rounded-xl ring-1 ring-red-500/20">
+                      <MessageSquare className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="font-bold text-white">Jangan khawatir ya!</p>
+                        <p className="leading-relaxed opacity-80">
+                          Kendala transaksi Anda akan kami bantu sampai selesai. Tim kami akan segera memproses pengecekan manual atau pengembalian dana.
+                        </p>
+                      </div>
+                    </div>
+
+                    {transaction && (
+                      <Link
+                        href={`https://wa.me/6285175224481?text=${encodeURIComponent(
+                          `Halo Admin EterShop, saya ingin bertanya mengenai pesanan saya dengan Order ID: ${transaction.orderId}.\n\nStatus: GAGAL\nProduk: ${transaction.productName}\n\nMohon bantuannya ya untuk pengecekan!`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold transition-all shadow-lg hover:shadow-emerald-500/25"
+                      >
+                        <Phone className="w-4 h-4" /> Hubungi CS WhatsApp
+                      </Link>
+                    )}
                   </div>
                 </>
               )}

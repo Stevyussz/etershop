@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Script from "next/script";
-import { Search, Package, Clock, ShieldCheck, AlertCircle, RefreshCcw, Home, CheckCircle2, ChevronRight, Info, Copy, CheckCheck, CreditCard } from "lucide-react";
+import { Search, Package, Clock, ShieldCheck, AlertCircle, RefreshCcw, Home, CheckCircle2, ChevronRight, Info, Copy, CheckCheck, CreditCard, MessageSquare, Phone } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 
 function TrackOrderContent() {
@@ -350,6 +350,35 @@ function TrackOrderContent() {
                            Lanjutkan Pembayaran
                          </button>
                        )}
+                    </div>
+                  )}
+
+                  {/* Failed/Gagal Help Context */}
+                  {orderData.status === 'FAILED' && (
+                    <div className="mt-8 bg-rose-500/10 border border-rose-500/20 p-5 rounded-3xl flex flex-col md:flex-row items-center gap-5 justify-between">
+                       <div className="flex items-start gap-4">
+                         <div className="bg-rose-500/20 p-2 rounded-xl shrink-0 text-rose-400">
+                           <MessageSquare className="w-6 h-6" />
+                         </div>
+                         <div>
+                           <p className="text-white font-bold text-lg mb-1">Transaksi Gagal</p>
+                           <p className="text-sm text-slate-400 leading-relaxed max-w-lg">
+                             Jangan khawatir ya, kendala transaksi Anda akan kami bantu sampai selesai. Silakan hubungi Customer Service kami untuk bantuan lebih lanjut.
+                           </p>
+                         </div>
+                       </div>
+                       
+                       <Link
+                         href={`https://wa.me/6285175224481?text=${encodeURIComponent(
+                           `Halo Admin EterShop, saya ingin bertanya mengenai pesanan saya dengan Order ID: ${orderData.orderId}.\n\nStatus: ${orderData.status}\nProduk: ${orderData.productName}\n\nMohon bantuannya ya!`
+                         )}`}
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         className="w-full md:w-auto mt-2 md:mt-0 whitespace-nowrap bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-emerald-500/25 flex items-center justify-center gap-2"
+                       >
+                         <Phone className="w-5 h-5" />
+                         Hubungi CS WhatsApp
+                       </Link>
                     </div>
                   )}
 
