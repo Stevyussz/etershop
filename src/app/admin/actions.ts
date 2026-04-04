@@ -11,6 +11,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import prisma from "@/lib/prisma";
+import { verifyAdmin } from "@/lib/auth";
 
 // ─────────────────────────────────────────────
 // HELPER: VALIDATION
@@ -243,6 +244,7 @@ export async function manualProcessOrder(orderId: string): Promise<{ success: bo
       console.log(`[ManualProcess] Checking status for ref_id: ${orderId}`);
       const checkResult = await checkDigiflazzTransactionStatus(orderId, transaction.sku, customerNo);
       let digiStatus = checkResult?.data?.status;
+      let resultData: any = null;
 
       // 2. SECOND: If not success, try to pay/execute if allowed
       if (digiStatus !== "Sukses" && digiStatus !== "Pending") {
@@ -258,10 +260,10 @@ export async function manualProcessOrder(orderId: string): Promise<{ success: bo
            console.warn("[DigiflazzWebhook] Invalid payload format received:", payResult);
          }
          digiStatus = payResult?.data?.status;
-         var resultData = payResult.data;
-      } else {
-         var resultData = checkResult.data;
-      }
+         resultData = payResult.data;
+       } else {
+         resultData = checkResult.data;
+       }
 
       if (digiStatus === "Sukses") {
         finalStatus = "SUCCESS";
@@ -312,3 +314,29 @@ export async function refreshDigiflazzBalance(): Promise<void> {
   revalidateTag("digiflazz-balance", "default");
 }
 
+
+/**
+ * Manually marks an order as FAILED.
+ * Useful for cancelling manual POS orders or stuck transactions.
+ * 
+ * @param orderId - The TRX or POS order ID.
+ */
+export async function failOrder(orderId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    await verifyAdmin();
+    
+    await prisma.topupTransaction.update({
+      where: { orderId },
+      data: { 
+        status: "FAILED",
+        digiflazzNote: "Dibatalkan oleh Admin."
+      },
+    });
+
+    revalidatePath("/admin/transactions");
+    return { success: true, message: "Pesanan berhasil dibatalkan/digagalkan." };
+  } catch (error: any) {
+    console.error("[FailOrder] Failed:", error);
+    return { success: false, message: error.message };
+  }
+}

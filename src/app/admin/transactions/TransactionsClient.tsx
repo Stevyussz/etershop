@@ -18,7 +18,7 @@ import {
   RefreshCcw, AlertTriangle, TrendingUp, X, DollarSign, Loader2, Wrench
 } from "lucide-react";
 import { formatRupiah, formatDate } from "@/lib/utils";
-import { manualProcessOrder } from "../actions";
+import { manualProcessOrder, failOrder } from "../actions";
 
 type TransactionStatus = "ALL" | "SUCCESS" | "PENDING" | "PAID" | "FAILED";
 
@@ -116,6 +116,17 @@ export default function TransactionsClient({ transactions, stats }: Props) {
     setProcessingId(orderId);
     startTransition(async () => {
       const res = await manualProcessOrder(orderId);
+      alert(res.message);
+      setProcessingId(null);
+    });
+  };
+
+  const handleFailOrder = (orderId: string) => {
+    if (!confirm(`Apakah Anda yakin ingin membatalkan/menggagalkan transaksi ${orderId}? Status akan berubah menjadi GAGAL.`)) return;
+    
+    setProcessingId(orderId);
+    startTransition(async () => {
+      const res = await failOrder(orderId);
       alert(res.message);
       setProcessingId(null);
     });
@@ -296,7 +307,7 @@ export default function TransactionsClient({ transactions, stats }: Props) {
                     <td className="py-3.5 px-5 text-right">
                       <StatusBadge status={order.status} />
                     </td>
-                    <td className="py-3.5 px-5 text-right">
+                    <td className="py-3.5 px-5 text-right flex items-center justify-end gap-2">
                       {(order.status === "PAID" || order.status === "PENDING" || order.status === "FAILED") && (
                         <button
                           onClick={() => handleManualProcess(order.orderId)}
@@ -308,6 +319,20 @@ export default function TransactionsClient({ transactions, stats }: Props) {
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <Wrench className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
+                      {(order.status === "PAID" || order.status === "PENDING") && (
+                        <button
+                          onClick={() => handleFailOrder(order.orderId)}
+                          disabled={isPending && processingId === order.orderId}
+                          title="Gagalkan Transaksi"
+                          className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all disabled:opacity-50 inline-flex items-center justify-center shrink-0"
+                        >
+                          {isPending && processingId === order.orderId ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <X className="w-4 h-4" />
                           )}
                         </button>
                       )}

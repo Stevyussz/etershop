@@ -20,7 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         distinct: ['brand']
       }),
       prisma.product.findMany({
-        where: { isPublished: true },
+        where: { isActive: true },
         select: { id: true, updatedAt: true },
         orderBy: { updatedAt: 'desc' }
       })

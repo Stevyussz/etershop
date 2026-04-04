@@ -115,7 +115,7 @@ function TrackOrderContent() {
                Lacak Pesanan
             </h1>
             <p className="text-slate-400 font-medium md:text-lg">
-               Pantau status top-up Anda secara real-time dengan nomor Invoice (TRX).
+               Pantau status top-up Anda secara real-time dengan nomor Invoice (TRX/POS).
             </p>
          </div>
 
@@ -132,7 +132,7 @@ function TrackOrderContent() {
                    type="text"
                    value={orderId}
                    onChange={e => setOrderId(e.target.value.toUpperCase())}
-                   placeholder="Contoh: TRX-16980000-A1B2C3"
+                   placeholder="Contoh: TRX-xxx atau POS-xxx"
                    className="w-full bg-[#0a0f16] border border-white/5 text-white pl-14 pr-6 py-5 rounded-2xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all font-mono text-base md:text-lg uppercase placeholder:normal-case placeholder:text-slate-500 shadow-inner"
                  />
               </div>
@@ -165,7 +165,8 @@ function TrackOrderContent() {
               <motion.div 
                 key={orderData.orderId}
                 initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -20 }}
-                className="w-full bg-[#111823]/95 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-6 lg:p-10 shadow-[0_30px_60px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                className="w-full bg-[#111823]/95 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-6 lg:p-10 shadow-[0_30px_60px_rgba(0,0,0,0.5)] relative overflow-hidden print:p-0 print:bg-white print:text-black print:shadow-none print:border-none print:rounded-none"
+                id="printable-invoice"
               >
                  {/* Status Color Bar */}
                  {orderData.status === 'SUCCESS' && <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,1)]"></div>}
@@ -187,26 +188,66 @@ function TrackOrderContent() {
                  </div>
 
                  {/* ITEM DETAIL */}
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-                   <div className="bg-[#0a0f16] p-4 rounded-xl border border-white/5">
-                      <p className="text-slate-500 text-xs mb-1">Item yang dibeli</p>
-                      <p className="text-white font-bold text-sm leading-tight">{orderData.productName}</p>
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 print:grid-cols-2 print:text-black">
+                   <div className="bg-[#0a0f16] p-4 rounded-xl border border-white/5 print:bg-gray-100 print:border-gray-200">
+                      <p className="text-slate-500 text-xs mb-1 print:text-gray-600 uppercase font-bold tracking-tight">Layanan</p>
+                      <p className="text-white font-bold text-sm leading-tight print:text-black">{orderData.productName}</p>
                    </div>
-                   <div className="bg-[#0a0f16] p-4 rounded-xl border border-white/5">
-                      <p className="text-slate-500 text-xs mb-1">User ID</p>
-                      <p className="text-blue-400 font-bold text-sm bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 w-max mt-1">{orderData.gameId}</p>
+                   <div className="bg-[#0a0f16] p-4 rounded-xl border border-white/5 print:bg-gray-100 print:border-gray-200">
+                      <p className="text-slate-500 text-xs mb-1 print:text-gray-600 uppercase font-bold tracking-tight">User ID</p>
+                      <p className="text-blue-400 font-bold text-sm bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 w-max mt-1 print:bg-transparent print:border-none print:p-0 print:text-black">{orderData.gameId}</p>
                    </div>
-                   <div className="bg-[#0a0f16] p-4 rounded-xl border border-white/5">
-                      <p className="text-slate-500 text-xs mb-1">Zone ID</p>
-                      <p className="text-white font-bold text-sm">{orderData.zoneId || '-'}</p>
+                   <div className="bg-[#0a0f16] p-4 rounded-xl border border-white/5 print:bg-gray-100 print:border-gray-200">
+                      <p className="text-slate-500 text-xs mb-1 print:text-gray-600 uppercase font-bold tracking-tight">Zone ID</p>
+                      <p className="text-white font-bold text-sm print:text-black">{orderData.zoneId || '-'}</p>
                    </div>
-                   <div className="bg-[#0a0f16] p-4 rounded-xl border border-white/5">
-                      <p className="text-slate-500 text-xs mb-1">Status Pembayaran</p>
-                      <p className="text-white font-bold text-sm">
-                        {orderData.status === 'PENDING' ? <span className="text-yellow-400">Belum Dibayar</span> : <span className="text-emerald-400">Sudah Dibayar</span>}
+                   <div className="bg-[#0a0f16] p-4 rounded-xl border border-white/5 print:bg-gray-100 print:border-gray-200">
+                      <p className="text-slate-500 text-xs mb-1 print:text-gray-600 uppercase font-bold tracking-tight">Status</p>
+                      <p className="text-white font-bold text-sm print:text-black">
+                        {orderData.status === 'SUCCESS' ? <span className="text-emerald-400 print:text-green-600">Terbayar & Sukses</span> : 
+                         orderData.status === 'PENDING' ? <span className="text-yellow-400 print:text-gray-600">Menunggu</span> : 
+                         <span className="text-blue-400 print:text-blue-600">{orderData.status}</span>}
                       </p>
                    </div>
                  </div>
+
+                 {/* Dotted Separator and Print Button */}
+                 <div className="flex items-center gap-4 mb-10 print:hidden">
+                    <div className="flex-1 border-t-2 border-dashed border-white/10"></div>
+                    <button 
+                      onClick={() => window.print()}
+                      className="bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2"
+                    >
+                      <Copy className="w-3.5 h-3.5" /> Cetak Invoice
+                    </button>
+                    <div className="flex-1 border-t-2 border-dashed border-white/10"></div>
+                 </div>
+
+                 <style dangerouslySetInnerHTML={{ __html: `
+                   @media print {
+                     nav, footer, .pt-32, .mb-10, .mb-12, .mt-10, button, .absolute {
+                       display: none !important;
+                     }
+                     body {
+                       background: white !important;
+                       color: black !important;
+                     }
+                     #printable-invoice {
+                       display: block !important;
+                       position: absolute !important;
+                       top: 0 !important;
+                       left: 0 !important;
+                       width: 100% !important;
+                       padding: 20px !important;
+                       background: white !important;
+                       color: black !important;
+                     }
+                     .text-white { color: black !important; }
+                     .text-slate-400 { color: #666 !important; }
+                     .bg-\\[\\#111823\\], .bg-\\[\\#0a0f16\\] { background: #f9f9f9 !important; border: 1px solid #eee !important; }
+                     .text-emerald-400 { color: green !important; }
+                   }
+                 ` }} />
 
                  {/* VISUAL TIMELINE PROGRESS */}
                  <div className="relative pt-4 pb-8">

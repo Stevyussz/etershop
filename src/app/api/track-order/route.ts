@@ -25,9 +25,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Basic format validation — Order IDs should start with "TRX-"
-    if (!orderId.startsWith("TRX-")) {
+    if (!orderId.startsWith("TRX-") && !orderId.startsWith("POS-")) {
       return NextResponse.json(
-        { error: "Format Order ID tidak valid. Order ID harus dimulai dengan 'TRX-'." },
+        { error: "Format Order ID tidak valid. Gunakan TRX-... atau POS-..." },
         { status: 400 }
       );
     }
