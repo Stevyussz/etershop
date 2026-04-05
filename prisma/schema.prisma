@@ -81,6 +81,9 @@ model TopupProduct {
   category      String   @default("Games")
   type          String   @default("Umum")
   isActive      Boolean  @default(true)
+  isGangguan    Boolean  @default(false)
+  isFlashSale   Boolean  @default(false)
+  flashSalePrice Float?
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

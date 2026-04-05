@@ -21,16 +21,36 @@ export async function manualCreatePosOrder(sku: string, customerNo: string) {
       return { success: false, message: "SKU Produk dan ID Tujuan wajib diisi." };
     }
 
-    // 1. Validate Product
-    const product = await prisma.topupProduct.findUnique({
-      where: { sku },
-    });
+    // 1. Validate Product and Settings
+    const [product, settings] = await Promise.all([
+      prisma.topupProduct.findUnique({
+        where: { sku },
+      }),
+      prisma.siteSettings.findUnique({
+        where: { id: "main" },
+      })
+    ]);
 
     if (!product) {
       return { success: false, message: "Produk tidak ditemukan di database." };
     }
     if (!product.isActive) {
       return { success: false, message: "Produk sedang dinonaktifkan." };
+    }
+    if (product.isGangguan) {
+      return { success: false, message: "Server penyedia sedang gangguan. Harap infokan ke pelanggan." };
+    }
+
+    // Flash Sale Logic for POS
+    let finalPrice = product.price;
+    const now = new Date();
+    if (
+      product.isFlashSale && 
+      product.flashSalePrice && 
+      settings?.countdownEnd && 
+      new Date(settings.countdownEnd) > now
+    ) {
+      finalPrice = product.flashSalePrice;
     }
 
     // 2. Generate Internal Order ID
@@ -65,7 +85,7 @@ export async function manualCreatePosOrder(sku: string, customerNo: string) {
         zoneId: null, // For POS we just combine it raw in customerNo input
         sku: product.sku,
         productName: product.name,
-        price: product.price,
+        price: finalPrice,
         cost: digiResult.price || product.originalPrice, 
         discount: 0,
         status: derivedStatus,

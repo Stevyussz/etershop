@@ -336,7 +336,7 @@ function TrackOrderContent() {
                          <div>
                            <p className="text-white font-bold text-lg mb-1">Menunggu Pembayaran</p>
                            <p className="text-sm text-slate-400 leading-relaxed max-w-lg">
-                             Sistem sedang menunggu Anda menyelesaikan pembayaran. Jika pembayaran sukses, status pesanan akan diproses otomatis ke Digiflazz dalam hitungan detik.
+                             Sistem sedang menunggu Anda menyelesaikan pembayaran. Jika pembayaran sukses, status pesanan akan diproses otomatis ke Etershop dalam hitungan detik.
                            </p>
                          </div>
                        </div>

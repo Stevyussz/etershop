@@ -33,9 +33,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Product Lookup ────────────────────────────────────
-    const product = await prisma.topupProduct.findUnique({
-      where: { sku },
-    });
+    const [product, settings] = await Promise.all([
+      prisma.topupProduct.findUnique({
+        where: { sku },
+      }),
+      prisma.siteSettings.findUnique({
+        where: { id: "main" },
+      })
+    ]);
 
     if (!product) {
       return NextResponse.json(
@@ -51,18 +56,38 @@ export async function POST(req: NextRequest) {
       );
     }
     
+    if (product.isGangguan) {
+      return NextResponse.json(
+        { error: "Server penyedia sedang gangguan untuk produk ini. Mohon coba produk lain." },
+        { status: 503 }
+      );
+    }
+
+    // ── Flash Sale Logic ──────────────────────────────────
+    let basePrice = product.price;
+    const now = new Date();
+    // Verify if Flash Sale is active globally and for this specific product
+    if (
+      product.isFlashSale && 
+      product.flashSalePrice && 
+      settings?.countdownEnd && 
+      new Date(settings.countdownEnd) > now
+    ) {
+      basePrice = product.flashSalePrice;
+    }
+    
     // ── Voucher Validation ────────────────────────────────
     let discount = 0;
     let voucherId = null;
     if (voucherCode) {
-      const vRes = await validateVoucher(voucherCode, product.price);
+      const vRes = await validateVoucher(voucherCode, basePrice);
       if (vRes.success) {
         discount = vRes.discount || 0;
         voucherId = vRes.voucherId || null;
       }
     }
 
-    const finalPrice = Math.max(0, product.price - discount);
+    const finalPrice = Math.max(0, basePrice - discount);
 
     // ── Payment Gateway (Midtrans) ────────────────────────
     const orderId = generateOrderId();

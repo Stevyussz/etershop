@@ -30,6 +30,9 @@ interface Product {
   price: number;
   originalPrice: number;
   isActive: boolean;
+  isGangguan: boolean;
+  isFlashSale: boolean;
+  flashSalePrice: number | null;
   category: string;
 }
 
@@ -39,6 +42,9 @@ export default function ProductDashboardClient({ products }: { products: Product
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("ALL");
   const [showInactive, setShowInactive] = useState(false);
+
+  // Flash Sale Modal State
+  const [flashSaleModal, setFlashSaleModal] = useState<{ id: string; name: string; price: number; isFlashSale: boolean; flashSalePrice: number | null } | null>(null);
 
   // Compute total active/inactive counts
   const activeCount = products.filter((p) => p.isActive).length;
@@ -88,6 +94,21 @@ export default function ProductDashboardClient({ products }: { products: Product
       const res = await toggleProductStatus(id, currentStatus);
       if (!res.success) {
         setToast({ msg: res.message || "Gagal mengubah status.", type: "error" });
+      }
+    });
+  };
+
+  const handleFlashSaleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!flashSaleModal) return;
+    startTransition(async () => {
+      const { updateFlashSale } = await import("./actions");
+      const res = await updateFlashSale(flashSaleModal.id, flashSaleModal.isFlashSale, flashSaleModal.flashSalePrice);
+      if (res.success) {
+        setToast({ msg: res.message, type: "success" });
+        setFlashSaleModal(null);
+      } else {
+        setToast({ msg: res.message || "Gagal menyimpan", type: "error" });
       }
     });
   };
@@ -230,7 +251,7 @@ export default function ProductDashboardClient({ products }: { products: Product
                 <th className="py-4 px-5">Nama Produk</th>
                 <th className="py-4 px-5 text-right">Modal</th>
                 <th className="py-4 px-5 text-right">Harga Jual</th>
-                <th className="py-4 px-5 text-right">Margin</th>
+                <th className="py-4 px-5 text-right flex items-center justify-end gap-1">Aksi Khusus</th>
               </tr>
             </thead>
             <tbody className="text-sm divide-y divide-white/[0.03]">
@@ -258,10 +279,25 @@ export default function ProductDashboardClient({ products }: { products: Product
                     </td>
                     <td className="py-3 px-5 text-slate-400 font-mono text-xs font-bold">{p.sku}</td>
                     <td className="py-3 px-5">
-                      <span className="text-white font-bold block text-sm leading-tight">{p.name}</span>
-                      <span className="text-xs text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded-md mt-1 inline-block border border-blue-500/20">
-                        {p.brand}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="text-white font-bold block text-sm leading-tight">{p.name}</span>
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          <span className="text-xs text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
+                            {p.brand}
+                          </span>
+                          {p.isGangguan && (
+                            <span className="text-xs text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse"></span>
+                              Gangguan
+                            </span>
+                          )}
+                          {p.isFlashSale && (
+                            <span className="text-xs text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 flex items-center gap-1">
+                              ⚡ FS: {formatRupiah(p.flashSalePrice || 0)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="py-3 px-5 text-right text-slate-500 text-sm line-through">
                       {formatRupiah(p.originalPrice)}
@@ -270,11 +306,13 @@ export default function ProductDashboardClient({ products }: { products: Product
                       {formatRupiah(p.price)}
                     </td>
                     <td className="py-3 px-5 text-right">
-                      <div className="flex flex-col items-end">
-                        <span className="text-emerald-400 font-bold text-sm flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3" /> +{formatRupiah(margin)}
-                        </span>
-                        <span className="text-[10px] text-slate-500">({marginPct}%)</span>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setFlashSaleModal(p)}
+                          className="px-3 py-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-xs font-bold rounded-lg text-slate-300 transition-colors"
+                        >
+                          ⚡ Set FS
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -309,6 +347,92 @@ export default function ProductDashboardClient({ products }: { products: Product
           </div>
         )}
       </div>
+
+      {/* ── Flash Sale Modal ── */}
+      <AnimatePresence>
+        {flashSaleModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 10 }}
+              className="bg-[#111823] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span className="text-amber-400">⚡</span> Setup Flash Sale
+                </h3>
+                <button onClick={() => setFlashSaleModal(null)} className="text-slate-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-slate-400 mb-6 line-clamp-2">{flashSaleModal.name}</p>
+
+              <form onSubmit={handleFlashSaleSave} className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-[#0a0f16] border border-white/5 rounded-xl">
+                  <div>
+                    <p className="font-bold text-white text-sm">Aktifkan Flash Sale</p>
+                    <p className="text-xs text-slate-500">Status produk ini dalam kampanye</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFlashSaleModal(prev => prev ? { ...prev, isFlashSale: !prev.isFlashSale } : null)}
+                    className="hover:scale-110 transition-transform"
+                  >
+                    {flashSaleModal.isFlashSale ? (
+                      <ToggleRight className="w-8 h-8 text-amber-500" />
+                    ) : (
+                      <ToggleLeft className="w-8 h-8 text-slate-600" />
+                    )}
+                  </button>
+                </div>
+
+                {flashSaleModal.isFlashSale && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                      Harga Flash Sale (Rp)
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={flashSaleModal.flashSalePrice || ""}
+                      onChange={(e) => setFlashSaleModal(prev => prev ? { ...prev, flashSalePrice: parseFloat(e.target.value) || 0 } : null)}
+                      className="w-full bg-[#0a0f16] border border-white/10 focus:border-amber-500 text-white rounded-xl px-4 py-3 outline-none transition-colors"
+                      placeholder="Masukkan harga coret..."
+                    />
+                    <p className="text-xs text-slate-500 mt-2">
+                      Harga asli saat ini: <strong className="line-through">{formatRupiah(flashSaleModal.price)}</strong>
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFlashSaleModal(null)}
+                    className="flex-1 py-3 px-4 rounded-xl font-bold text-slate-300 bg-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPending}
+                    className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-amber-600 hover:bg-amber-500 transition-colors flex justify-center items-center gap-2"
+                  >
+                    {isPending ? "Menyimpan..." : "Simpan"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

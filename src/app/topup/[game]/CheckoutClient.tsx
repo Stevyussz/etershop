@@ -315,7 +315,12 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
   };
 
   const isValidToPay = !!selectedSku && !!gameId && (!needsZoneId || !!zoneId);
-  const basePrice = selectedProduct?.price ?? 0;
+  
+  // Use flash sale price if active
+  const basePrice = (selectedProduct?.isFlashSale && selectedProduct?.flashSalePrice)
+    ? selectedProduct.flashSalePrice 
+    : (selectedProduct?.price ?? 0);
+    
   const finalPrice = isVoucherApplied ? Math.max(0, basePrice - voucherDiscount) : basePrice;
 
   return (
@@ -522,13 +527,25 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
                             return (
                               <button
                                 key={p.sku}
-                                onClick={() => setSelectedSku(p.sku)}
+                                onClick={() => {
+                                  if (!p.isGangguan) setSelectedSku(p.sku);
+                                }}
+                                disabled={p.isGangguan}
                                 className={`relative p-4 md:p-5 text-left flex flex-col justify-center transition-all duration-200 rounded-2xl border overflow-hidden bg-[#0a0f16] group ${
-                                  isSelected 
-                                    ? "border-fuchsia-400/80 bg-fuchsia-500/5 ring-1 ring-fuchsia-400/50 shadow-[0_0_15px_rgba(217,70,239,0.15)]" 
-                                    : "border-white/5 hover:border-white/20 hover:bg-[#1a2333]"
+                                  p.isGangguan
+                                    ? "opacity-50 cursor-not-allowed border-rose-500/20 bg-rose-500/5"
+                                    : isSelected 
+                                      ? "border-fuchsia-400/80 bg-fuchsia-500/5 ring-1 ring-fuchsia-400/50 shadow-[0_0_15px_rgba(217,70,239,0.15)]" 
+                                      : "border-white/5 hover:border-white/20 hover:bg-[#1a2333]"
                                 }`}
                               >
+                                {p.isGangguan && (
+                                  <div className="absolute inset-0 bg-[#0a0f16]/60 backdrop-blur-[1px] z-20 flex items-center justify-center">
+                                    <span className="bg-rose-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded shadow-lg flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> Gangguan
+                                    </span>
+                                  </div>
+                                )}
                                 {isHot && !isSelected && (
                                    <span className="absolute -right-6 top-2 bg-gradient-to-r from-rose-600 to-red-600 text-[8px] font-black tracking-widest text-white px-8 py-0.5 rotate-45 z-10 shadow-md">HOT</span>
                                 )}
@@ -538,9 +555,20 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
                                 )}
                                 
                                 <span className="text-white font-bold text-sm md:text-base mb-1 z-10 leading-tight">{p.name}</span>
-                                <span className={`font-semibold z-10 text-xs md:text-sm transition-colors ${isSelected ? 'text-fuchsia-400' : 'text-slate-400'}`}>
-                                  {formatRupiah(p.price)}
-                                </span>
+                                {p.isFlashSale && p.flashSalePrice ? (
+                                  <div className="font-semibold z-10 flex flex-col text-xs md:text-sm">
+                                    <span className="text-rose-400 line-through text-[10px] md:text-xs">
+                                      {formatRupiah(p.price)}
+                                    </span>
+                                    <span className="text-amber-400 font-extrabold drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]">
+                                      {formatRupiah(p.flashSalePrice)}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className={`font-semibold z-10 text-xs md:text-sm transition-colors ${isSelected ? 'text-fuchsia-400' : 'text-slate-400'}`}>
+                                    {formatRupiah(p.price)}
+                                  </span>
+                                )}
                                 
                                 <div className={`absolute inset-0 bg-gradient-to-br from-fuchsia-600/10 to-transparent transition-opacity duration-300 ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
                               </button>

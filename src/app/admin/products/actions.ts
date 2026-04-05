@@ -85,6 +85,7 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct, settings: any) {
       type: p.type,
       originalPrice,
       price: sellingPrice,
+      isGangguan: !p.seller_product_status,
       // Note: We don't overwrite isActive on update to preserve manual deactivation settings
     },
     create: {
@@ -96,6 +97,7 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct, settings: any) {
       originalPrice,
       price: sellingPrice,
       isActive: true,
+      isGangguan: !p.seller_product_status,
     },
   };
 }
@@ -107,7 +109,10 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct, settings: any) {
 function filterActiveProducts(products: DigiflazzProduct[]): DigiflazzProduct[] {
   console.log(`[Admin] Filtering ${products.length} products from Digiflazz...`);
   
-  const filtered = products.filter((p) => p.seller_product_status === true);
+  // We sync any product that Digiflazz still offers to buyers.
+  // We DO NOT filter out seller_product_status = false anymore.
+  // Instead, they will be mapped to isGangguan = true for real-time UI warnings.
+  const filtered = products.filter((p) => p.buyer_product_status === true);
 
   console.log(`[Admin] Found ${filtered.length} matching active products.`);
   return filtered;
@@ -129,6 +134,25 @@ export async function toggleProductStatus(id: string, currentStatus: boolean) {
     return { success: true };
   } catch (error: any) {
     console.error("[Admin] Toggle status failed:", error);
+    return { success: false, message: error.message };
+  }
+}
+
+/**
+ * Updates Flash Sale properties for a product.
+ */
+export async function updateFlashSale(id: string, isFlashSale: boolean, flashSalePrice: number | null) {
+  try {
+    await verifyAdmin();
+    await prisma.topupProduct.update({
+      where: { id },
+      data: { isFlashSale, flashSalePrice }
+    });
+    revalidatePath("/admin/products");
+    revalidatePath("/topup");
+    return { success: true, message: "Pengaturan Flash Sale berhasil disimpan." };
+  } catch (error: any) {
+    console.error("[Admin] Update flash sale failed:", error);
     return { success: false, message: error.message };
   }
 }

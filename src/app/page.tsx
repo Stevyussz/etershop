@@ -100,7 +100,7 @@ export default async function Home() {
       <section className="relative overflow-hidden bg-[#080d18] pb-20 pt-12 md:pt-20">
         {/* Grid overlay - softened */}
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#06b6d405_1px,transparent_1px),linear-gradient(to_bottom,#06b6d405_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_60%_at_50%_0%,#000_40%,transparent_100%)]" />
-        
+
         {/* Glow blobs - more natural/organic blend */}
         <div className="pointer-events-none absolute -top-40 -left-20 h-[600px] w-[600px] rounded-full bg-cyan-600/10 blur-[130px]" />
         <div className="pointer-events-none absolute top-1/4 -right-10 h-[500px] w-[500px] rounded-full bg-emerald-600/5 blur-[120px]" />
@@ -128,7 +128,7 @@ export default async function Home() {
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/shop"
+              href="/topup"
               className="inline-flex items-center justify-center gap-2 h-14 px-10 rounded-full font-bold text-base text-white bg-gradient-to-r from-cyan-500 to-emerald-500 shadow-[0_10px_30px_-10px_rgba(6,182,212,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(6,182,212,0.6)] hover:-translate-y-0.5 active:scale-95 transition-all"
             >
               Mulai Belanja <ArrowRight className="h-5 w-5" />
@@ -161,7 +161,7 @@ export default async function Home() {
           </div>
         </div>
       </section>
-      
+
       {/* ── PPOB & TOPUP BRANDING ── */}
       <section className="py-24 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-[#080d18] via-cyan-950/10 to-[#080d18]" />
@@ -178,37 +178,37 @@ export default async function Home() {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
             {[
-              { 
-                title: "Top Up Game", 
-                desc: "Diamond, UC, & Gems", 
-                icon: Gamepad2, 
+              {
+                title: "Top Up Game",
+                desc: "Diamond, UC, & Gems",
+                icon: Gamepad2,
                 color: "from-blue-500 to-indigo-600",
                 shadow: "shadow-blue-500/20"
               },
-              { 
-                title: "Pulsa & Data", 
-                desc: "Seluruh Operator", 
-                icon: Smartphone, 
+              {
+                title: "Pulsa & Data",
+                desc: "Seluruh Operator",
+                icon: Smartphone,
                 color: "from-rose-500 to-orange-500",
                 shadow: "shadow-rose-500/20"
               },
-              { 
-                title: "Token PLN", 
-                desc: "Listrik 24 Jam", 
-                icon: Zap, 
+              {
+                title: "Token PLN",
+                desc: "Listrik 24 Jam",
+                icon: Zap,
                 color: "from-yellow-500 to-amber-600",
                 shadow: "shadow-yellow-500/20"
               },
-              { 
-                title: "E-Wallet", 
-                desc: "Top Up Saldo Instan", 
-                icon: Wallet, 
+              {
+                title: "E-Wallet",
+                desc: "Top Up Saldo Instan",
+                icon: Wallet,
                 color: "from-emerald-500 to-teal-600",
                 shadow: "shadow-emerald-500/20"
               }
             ].map((item, idx) => (
-              <Link 
-                key={idx} 
+              <Link
+                key={idx}
                 href="/topup"
                 className={`group relative p-8 rounded-[2.5rem] bg-[#0c1526] border border-white/5 overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:border-white/10 ${item.shadow} hover:shadow-2xl`}
               >
