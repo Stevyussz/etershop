@@ -28,6 +28,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import crypto from "crypto";
 import { executeDigiflazzTopup } from "@/lib/digiflazz";
+import { triggerAutoRefund } from "@/lib/midtrans-refund";
 
 // Health check — prevents 405 when the URL is opened in a browser or pinged by monitoring tools
 export async function GET() {
@@ -165,6 +166,17 @@ export async function POST(req: NextRequest) {
         where: { orderId: order_id },
         data: { status: finalStatus, digiflazzNote },
       });
+
+      // Step 5: Auto-Refund if topup FAILED and customer already paid
+      // We fire-and-forget since the refund is tracked separately in refundStatus
+      if (finalStatus === "FAILED") {
+        const transactionPrice = transaction.price;
+        console.log(`[Webhook] 💸 Triggering auto-refund for failed order ${orderId}. Amount: Rp ${transactionPrice}`);
+        // Non-blocking: don't await so we return 200 to Midtrans immediately
+        triggerAutoRefund(orderId, transactionPrice).catch((err) =>
+          console.error(`[Webhook] Auto-refund error for ${orderId}:`, err)
+        );
+      }
 
       console.log(`[Webhook] ✅ Fulfillment completed for order ${orderId}. Final Status: ${finalStatus}.`);
       return NextResponse.json({ message: `Topup ${finalStatus}` }, { status: 200 });

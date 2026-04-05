@@ -22,6 +22,7 @@ import prisma from "@/lib/prisma";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import AutoRefresh from "./AutoRefresh";
 import RefreshButton from "./RefreshButton";
+import PremiumInvoice from "@/components/shared/PremiumInvoice";
 
 interface PageProps {
   searchParams: Promise<{ order_id?: string; pending?: string }>;
@@ -127,64 +128,18 @@ export default async function TopupSuccessPage({ searchParams }: PageProps) {
         </div>
 
         {/* Title & Description */}
-        <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight mb-3">{cfg.title}</h1>
-        <p className="text-slate-400 text-base mb-8 font-medium leading-relaxed">{cfg.desc}</p>
+        <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight mb-3 print-hide">{cfg.title}</h1>
+        <p className="text-slate-400 text-base mb-8 font-medium leading-relaxed print-hide">{cfg.desc}</p>
 
-        {/* Order Info Card */}
-        <div className="bg-[#0a0f16]/90 border border-white/5 rounded-2xl p-5 mb-8 text-left space-y-4">
-          {/* Order ID */}
-          <div>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">ID Pesanan</p>
-            <div className="text-sm text-white font-mono font-bold flex items-center gap-2 break-all">
-              <TicketCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-              {transaction?.orderId || orderId || "—"}
-            </div>
-          </div>
+        {/* Premium Invoice Component */}
+        <div className="mb-8">
+          <PremiumInvoice transaction={transaction} showPrintButton={isSuccess || isFailed} />
+        </div>
 
+        {/* Interactive Actions / States (Hidden on print) */}
+        <div className="print-hide text-left">
           {transaction && (
             <>
-              <div className="h-px bg-white/5" />
-
-              {/* Product + Price */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-slate-500 text-[10px] uppercase font-bold mb-1">Item</p>
-                  <p className="text-white font-bold leading-snug">{transaction.productName}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 text-[10px] uppercase font-bold mb-1">Harga</p>
-                  <p className="text-emerald-400 font-black">{formatRupiah(transaction.price)}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 text-[10px] uppercase font-bold mb-1">ID Tujuan</p>
-                  <p className="text-blue-400 font-mono text-xs bg-blue-500/10 px-2 py-1 rounded-lg w-fit">
-                    {transaction.gameId}
-                    {transaction.zoneId ? ` (${transaction.zoneId})` : ""}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-500 text-[10px] uppercase font-bold mb-1">Waktu</p>
-                  <p className="text-slate-300 text-xs">{formatDate(transaction.updatedAt)}</p>
-                </div>
-              </div>
-
-              {/* SN — shown only on SUCCESS */}
-              {isSuccess && transaction.digiflazzNote && (
-                <>
-                  <div className="h-px bg-white/5" />
-                  <div>
-                    <p className="text-slate-500 text-[10px] uppercase font-bold mb-2 flex items-center gap-1.5">
-                      <Zap className="w-3 h-3 text-emerald-400" /> Serial Number (SN)
-                    </p>
-                    <p className="text-xs font-mono text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 rounded-xl break-all leading-relaxed">
-                      {transaction.digiflazzNote}
-                    </p>
-                    <p className="text-[10px] text-slate-600 mt-1.5">
-                      Simpan SN ini sebagai bukti pengiriman resmi.
-                    </p>
-                  </div>
-                </>
-              )}
 
               {/* PAID — processing indicator */}
               {isProcessing && (

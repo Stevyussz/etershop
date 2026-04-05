@@ -78,7 +78,7 @@ export async function manualCreatePosOrder(sku: string, customerNo: string) {
     if (digiResult.status === "Gagal") derivedStatus = "FAILED";
 
     // 4. Record the offline transaction internally
-    await prisma.topupTransaction.create({
+    const transaction = await prisma.topupTransaction.create({
       data: {
         orderId,
         gameId: customerNo, // We store the full customerNo here
@@ -101,7 +101,8 @@ export async function manualCreatePosOrder(sku: string, customerNo: string) {
       success: true, 
       message: `Berhasil! Transaksi POS telah dikirim ke Digiflazz. Status saat ini: ${digiResult.status}`,
       digiflazzStatus: digiResult.status,
-      sn: digiResult.sn || "-"
+      sn: digiResult.sn || "-",
+      transaction
     };
   } catch (error: any) {
     console.error("[POS] Fatal error:", error);

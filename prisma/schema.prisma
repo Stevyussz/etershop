@@ -104,6 +104,14 @@ model TopupTransaction {
   status      String   @default("PENDING") 
   snapToken   String?
   
+  // Auto-Refund tracking fields
+  // Possible values: null (not yet evaluated) | "PENDING_REFUND" (locked, in progress)
+  //                  "REFUNDED" (success) | "REFUND_FAILED" (error, admin action needed)
+  //                  "SKIPPED" (method not eligible, e.g. Bank VA)
+  refundStatus String?  
+  refundedAt   DateTime? 
+  refundNote   String?  
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

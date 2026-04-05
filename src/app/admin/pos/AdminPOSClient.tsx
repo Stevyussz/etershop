@@ -5,6 +5,7 @@ import { searchProducts } from "../settings/price-actions";
 import { manualCreatePosOrder } from "./pos-actions";
 import { Search, PackageCheck, UserCircle, Zap, ShieldCheck, CheckCircle2, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import PremiumInvoice from "@/components/shared/PremiumInvoice";
 
 export default function AdminPOSClient() {
   const [query, setQuery] = useState("");
@@ -18,7 +19,7 @@ export default function AdminPOSClient() {
   const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const [lastResult, setLastResult] = useState<{ sn: string; status: string } | null>(null);
+  const [lastTransaction, setLastTransaction] = useState<any | null>(null);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -50,12 +51,12 @@ export default function AdminPOSClient() {
     if (!selectedProduct || !customerNo) return;
 
     startTransition(async () => {
-      setLastResult(null);
+      setLastTransaction(null);
       const res = await manualCreatePosOrder(selectedProduct.sku, customerNo);
       
       if (res.success) {
         setToast({ msg: res.message, type: "success" });
-        setLastResult({ sn: res.sn || "-", status: res.digiflazzStatus || "PENDING" });
+        setLastTransaction(res.transaction);
         setSelectedProduct(null);
         setCustomerNo("");
       } else {
@@ -181,22 +182,12 @@ export default function AdminPOSClient() {
         </div>
 
         {/* Status Dashboard Panel */}
-        <div className="bg-gradient-to-br from-[#0c1526] to-[#080d18] border border-cyan-500/10 p-6 rounded-3xl relative overflow-hidden flex flex-col justify-center">
-          <ShieldCheck className="absolute -bottom-10 -left-10 w-64 h-64 text-cyan-500/5" />
+        <div className="bg-[#111823] md:bg-gradient-to-br from-[#0c1526] to-[#080d18] border border-cyan-500/10 p-6 rounded-3xl relative overflow-hidden flex flex-col justify-center print:hidden md:print:flex print:absolute print:inset-0 print:border-none print:shadow-none print:w-full print:h-full print:z-50 print:bg-white print:p-0">
+          <ShieldCheck className="absolute -bottom-10 -left-10 w-64 h-64 text-cyan-500/5 print:hidden" />
           
-          {lastResult ? (
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 text-center space-y-4">
-              <div className="inline-flex w-16 h-16 rounded-full items-center justify-center bg-cyan-500/20 text-cyan-400 mx-auto">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <h3 className="text-xl font-black text-white px-4">Proses Selesai!</h3>
-              <div className="bg-black/40 border border-white/5 rounded-xl p-4 text-left space-y-2 mt-4">
-                 <p className="text-xs text-slate-400">Status Respon:</p>
-                 <p className="text-lg font-bold text-emerald-400">{lastResult.status}</p>
-                 <div className="h-px bg-white/5 my-2" />
-                 <p className="text-xs text-slate-400">Catatan/SN Digiflazz:</p>
-                 <p className="font-mono text-sm text-cyan-400 select-all">{lastResult.sn}</p>
-              </div>
+          {lastTransaction ? (
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 w-full flex flex-col items-center">
+              <PremiumInvoice transaction={lastTransaction} showPrintButton={true} />
             </motion.div>
           ) : (
              <div className="relative z-10 text-center opacity-40">

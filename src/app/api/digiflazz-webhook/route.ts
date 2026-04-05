@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import crypto from "crypto";
+import { triggerAutoRefund } from "@/lib/midtrans-refund";
 
 export async function GET() {
   return NextResponse.json({ 
@@ -159,6 +160,23 @@ export async function POST(req: NextRequest) {
       where: { orderId },
       data: { status: finalStatus, digiflazzNote },
     });
+
+    // 7. Auto-Refund if topup FAILED via async callback
+    // Only triggered when Digiflazz finally confirms failure after a "Pending" period.
+    // The customer already paid Midtrans at this point, so refund is necessary.
+    if (finalStatus === "FAILED") {
+      const txForRefund = await prisma.topupTransaction.findUnique({
+        where: { orderId },
+        select: { price: true },
+      });
+      if (txForRefund) {
+        console.log(`[DigiflazzWebhook] 💸 Triggering auto-refund for async-failed order ${orderId}. Amount: Rp ${txForRefund.price}`);
+        // Non-blocking: return 200 to Digiflazz immediately, refund happens async
+        triggerAutoRefund(orderId, txForRefund.price).catch((err) =>
+          console.error(`[DigiflazzWebhook] Auto-refund error for ${orderId}:`, err)
+        );
+      }
+    }
 
     return NextResponse.json({ message: `Transaction updated to ${finalStatus}` }, { status: 200 });
 

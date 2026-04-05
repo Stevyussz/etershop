@@ -85,7 +85,7 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct, settings: any) {
       type: p.type,
       originalPrice,
       price: sellingPrice,
-      isGangguan: !p.seller_product_status,
+      isGangguan: !p.seller_product_status || !p.buyer_product_status,
       // Note: We don't overwrite isActive on update to preserve manual deactivation settings
     },
     create: {
@@ -97,7 +97,7 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct, settings: any) {
       originalPrice,
       price: sellingPrice,
       isActive: true,
-      isGangguan: !p.seller_product_status,
+      isGangguan: !p.seller_product_status || !p.buyer_product_status,
     },
   };
 }
@@ -107,15 +107,13 @@ function mapDigiflazzProductForDB(p: DigiflazzProduct, settings: any) {
  * This function now allows ALL product types (Pulsa, Token PLN, E-Wallet, Games, etc.).
  */
 function filterActiveProducts(products: DigiflazzProduct[]): DigiflazzProduct[] {
-  console.log(`[Admin] Filtering ${products.length} products from Digiflazz...`);
+  console.log(`[Admin] Processing ${products.length} products from Digiflazz...`);
   
-  // We sync any product that Digiflazz still offers to buyers.
-  // We DO NOT filter out seller_product_status = false anymore.
-  // Instead, they will be mapped to isGangguan = true for real-time UI warnings.
-  const filtered = products.filter((p) => p.buyer_product_status === true);
-
-  console.log(`[Admin] Found ${filtered.length} matching active products.`);
-  return filtered;
+  // FIXED BUG: We DO NOT filter anything out! 
+  // If a product is disabled by Digiflazz (buyer_product_status = false), 
+  // it should still exist in our DB but flagged as `isGangguan = true`.
+  // Otherwise, our system thinks the product was "deleted" and permanently hides it.
+  return products;
 }
 
 /**

@@ -32,6 +32,8 @@ interface Transaction {
   cost: number | null;
   status: string;
   digiflazzNote: string | null;
+  refundStatus: string | null;
+  refundNote: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +59,31 @@ const STATUS_TABS: { key: TransactionStatus; label: string; color: string }[] = 
   { key: "PAID", label: "Diproses", color: "text-blue-400" },
   { key: "FAILED", label: "Gagal", color: "text-rose-400" },
 ];
+
+function RefundBadge({ refundStatus, refundNote }: { refundStatus: string | null; refundNote?: string | null }) {
+  if (!refundStatus) return <span className="text-slate-700 text-[10px]">—</span>;
+  
+  const cfg: Record<string, { cls: string; label: string; icon: string }> = {
+    PENDING_REFUND:   { cls: "text-blue-400 bg-blue-500/10 border-blue-500/20",   label: "Proses Refund", icon: "🔵" },
+    REFUNDED:         { cls: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", label: "Refunded ✓",   icon: "✅" },
+    REFUND_FAILED:    { cls: "text-rose-400 bg-rose-500/10 border-rose-500/20",    label: "Refund Gagal", icon: "❌" },
+    SKIPPED:          { cls: "text-slate-400 bg-slate-500/10 border-slate-500/20", label: "Manual",      icon: "⚠️" },
+  };
+  const s = cfg[refundStatus] ?? cfg["SKIPPED"];
+  return (
+    <div className="group/refund relative">
+      <span className={`inline-flex items-center gap-1 text-[10px] font-bold border px-2 py-1 rounded-md cursor-help ${s.cls}`}>
+        {s.icon} {s.label}
+      </span>
+      {refundNote && (
+        <div className="absolute right-0 bottom-full mb-2 hidden group-hover/refund:block bg-[#0a0f16] border border-white/10 p-3 rounded-xl text-[10px] text-slate-300 z-50 min-w-[240px] max-w-[300px] shadow-2xl leading-relaxed">
+          <p className="text-slate-500 font-bold uppercase text-[9px] mb-1">Refund Note</p>
+          {refundNote}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
@@ -246,6 +273,7 @@ export default function TransactionsClient({ transactions, stats }: Props) {
                 <th className="py-4 px-5 text-right">Harga Jual</th>
                 <th className="py-4 px-5 text-right">Laba</th>
                 <th className="py-4 px-5 text-right w-[130px]">Status</th>
+                <th className="py-4 px-5 text-right w-[120px]">Refund</th>
                 <th className="py-4 px-5 text-right w-[110px]">Aksi</th>
               </tr>
             </thead>
@@ -306,6 +334,9 @@ export default function TransactionsClient({ transactions, stats }: Props) {
                     </td>
                     <td className="py-3.5 px-5 text-right">
                       <StatusBadge status={order.status} />
+                    </td>
+                    <td className="py-3.5 px-5 text-right">
+                      <RefundBadge refundStatus={order.refundStatus} refundNote={order.refundNote} />
                     </td>
                     <td className="py-3.5 px-5 text-right flex items-center justify-end gap-2">
                       {(order.status === "PAID" || order.status === "PENDING" || order.status === "FAILED") && (
