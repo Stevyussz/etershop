@@ -14,14 +14,14 @@ import { useRouter } from "next/navigation";
 import {
   CheckCircle2, ShieldCheck, Zap, ArrowLeft,
   BellRing, Info, Flame, ChevronDown,
-  Ticket, Check, X, Gem, QrCode, Clock, RefreshCcw, AlertCircle
+  Ticket, Check, X, Gem, QrCode, Clock, RefreshCcw, AlertCircle, Download
 } from "lucide-react";
 import { formatRupiah, slugifyBrand } from "@/lib/utils";
 // @ts-ignore
 import type { TopupProduct, GameConfig } from "@prisma/client";
 import { validateVoucher } from "@/app/admin/vouchers/voucher-actions";
 import { validateNickname } from "./validator-actions";
-import { QRCodeSVG } from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
 
 // ─────────────────────────────────────────────
 // TYPES & CONSTANTS
@@ -156,6 +156,17 @@ function QrisModal({
     setPollStatus("expired");
   }, [stopPolling]);
 
+  const downloadQR = () => {
+    const canvas = document.getElementById("qris-canvas") as HTMLCanvasElement;
+    if (canvas) {
+      const url = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `QRIS-${qrisData.orderId}.png`;
+      a.click();
+    }
+  };
+
   useEffect(() => {
     const poll = async () => {
       try {
@@ -203,7 +214,7 @@ function QrisModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex flex-col items-center justify-end md:justify-center p-0 md:p-4"
+      className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex flex-col items-center justify-end md:justify-center p-0 md:p-4"
     >
       <motion.div
         initial={{ y: "100%", opacity: 0 }}
@@ -285,7 +296,8 @@ function QrisModal({
             {/* QRIS Rendered by react-qr-code directly from qris string */}
             <div className="bg-white p-3 rounded-2xl flex items-center justify-center shadow-inner relative z-10 w-[240px] h-[240px]">
               {qrisData.qrString ? (
-                 <QRCodeSVG 
+                 <QRCodeCanvas 
+                    id="qris-canvas"
                     value={qrisData.qrString} 
                     size={220} 
                     level="Q" 
@@ -302,10 +314,30 @@ function QrisModal({
               ) : (
                 <div className="text-center p-4">
                   <QrCode className="w-16 h-16 mx-auto text-gray-300 mb-3" />
-                  <p className="text-gray-400 text-xs mt-2">Gagal memuat QR Code</p>
+                  <p className="text-gray-400 text-xs mt-2">Gagal memuat QR Code. Pastikan channel QRIS sudah aktif.</p>
                 </div>
               )}
             </div>
+          </div>
+          
+          {qrisData.qrString && pollStatus === "polling" && (
+            <button 
+              onClick={downloadQR}
+              className="mx-auto mt-4 w-full max-w-[240px] bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 rounded-xl py-2.5 text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2"
+            >
+              <Download className="w-4 h-4" /> Unduh QR Code
+            </button>
+          )}
+
+          {/* Payment Instructions */}
+          <div className="mt-5 bg-white/[0.03] border border-white/5 rounded-2xl p-4">
+            <p className="text-white text-xs font-bold mb-2">Cara Pembayaran:</p>
+            <ol className="text-slate-400 text-[11px] leading-relaxed space-y-1.5 list-decimal list-inside marker:text-pink-500">
+              <li>Buka aplikasi E-Wallet/M-Banking Anda (GoPay, OVO, Dana, ShopeePay, BCA, dll).</li>
+              <li>Pilih menu <strong>Scan QR</strong>.</li>
+              <li>Scan kode QR di atas atau gunakan gambar QR yang telah diunduh dari galeri.</li>
+              <li>Selesaikan pembayaran, saldo akan otomatis masuk!</li>
+            </ol>
           </div>
         </div>
 

@@ -121,12 +121,13 @@ export async function POST(req: NextRequest) {
 
     const midtransData = await midtransRes.json();
 
-    if (!midtransRes.ok || midtransData.status_code === "400" || midtransData.status_code === "500") {
+    // Any status code other than 200/201 from Midtrans means the charge failed.
+    if (!midtransRes.ok || (midtransData.status_code !== "201" && midtransData.status_code !== "200")) {
       const errMsg = midtransData?.error_messages?.join(", ") || midtransData?.status_message || "Unknown error";
       console.error("[CoreAPI] Midtrans charge failed:", JSON.stringify(midtransData));
       return NextResponse.json(
-        { error: `Gagal membuat transaksi QRIS: ${errMsg}` },
-        { status: 502 }
+        { error: `Gagal membuat transaksi: ${errMsg}` },
+        { status: 400 }
       );
     }
 
