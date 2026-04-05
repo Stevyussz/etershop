@@ -446,6 +446,7 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
   const [voucherError, setVoucherError] = useState("");
   const [voucherDiscount, setVoucherDiscount] = useState(0);
   const [isVoucherApplied, setIsVoucherApplied] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [showHowTo, setShowHowTo] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ name: string; item: string } | null>(null);
 
@@ -536,7 +537,8 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
         amount: data.amount,
       });
     } catch (e: any) {
-      alert(e.message || "Gagal memproses transaksi. Silakan coba lagi.");
+      setCheckoutError(e.message || "Gagal memproses transaksi. Silakan coba lagi.");
+      setTimeout(() => setCheckoutError(null), 8000);
     } finally {
       setIsLoading(false);
     }
@@ -595,6 +597,32 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
             onClose={handleQrisClose}
             onSuccess={handleQrisSuccess}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Checkout Error Toast */}
+      <AnimatePresence>
+        {checkoutError && (
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4">
+            <motion.div
+              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-rose-500 text-white p-4 rounded-2xl shadow-2xl flex items-start gap-3 border border-rose-400"
+            >
+              <AlertCircle className="w-6 h-6 shrink-0" />
+              <div className="flex-1">
+                <p className="font-black text-sm">Gagal Membuat Pesanan</p>
+                <p className="text-xs mt-0.5 opacity-90 leading-relaxed">{checkoutError}</p>
+              </div>
+              <button 
+                onClick={() => setCheckoutError(null)}
+                className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

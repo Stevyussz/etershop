@@ -88,6 +88,15 @@ export async function POST(req: NextRequest) {
     if (transaction_status === "settlement" || transaction_status === "capture") {
       // ── PAYMENT CONFIRMED → Execute Delivery ──────────────────
 
+      // ── Amount Guard: Anti-Fraud Check ────────────────────────
+      // We skip if gross_amount from Midtrans is less than the price we recorded.
+      // (Using parseFloat to handle potential string types in JSON payload)
+      const paidAmount = parseFloat(gross_amount);
+      if (paidAmount < transaction.price) {
+        console.warn(`[Webhook] 🚨 AMOUNT MISMATCH for order ${orderId}. Paid: ${paidAmount}, Expected: ${transaction.price}. Potential tampering.`);
+        return NextResponse.json({ error: "Amount mismatch" }, { status: 400 });
+      }
+
       // Step 1: Mark PAID immediately so we track that money was received,
       // even if the Digiflazz call below fails unexpectedly.
       await prisma.topupTransaction.update({

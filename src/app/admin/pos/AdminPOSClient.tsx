@@ -3,7 +3,7 @@
 import { useState, useRef, useTransition } from "react";
 import { searchProducts } from "../settings/price-actions";
 import { manualCreatePosOrder } from "./pos-actions";
-import { Search, PackageCheck, UserCircle, Zap, ShieldCheck, CheckCircle2, AlertCircle } from "lucide-react";
+import { Search, PackageCheck, UserCircle, Zap, ShieldCheck, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import PremiumInvoice from "@/components/shared/PremiumInvoice";
 
@@ -20,6 +20,7 @@ export default function AdminPOSClient() {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const [lastTransaction, setLastTransaction] = useState<any | null>(null);
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -57,6 +58,7 @@ export default function AdminPOSClient() {
       if (res.success) {
         setToast({ msg: res.message, type: "success" });
         setLastTransaction(res.transaction);
+        setRecentTransactions(prev => [res.transaction, ...prev].slice(0, 5));
         setSelectedProduct(null);
         setCustomerNo("");
       } else {
@@ -68,7 +70,7 @@ export default function AdminPOSClient() {
   };
 
   return (
-    <div className="max-w-4xl space-y-8">
+    <div className="max-w-6xl space-y-8 pb-12">
       {/* Header */}
       <div className="bg-[#111823] p-8 rounded-3xl border border-blue-500/10 shadow-[0_0_40px_rgba(37,99,235,0.05)] relative overflow-hidden">
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500/20 blur-[80px] rounded-full pointer-events-none" />
@@ -85,7 +87,7 @@ export default function AdminPOSClient() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8">
+      <div className="grid lg:grid-cols-[1fr_400px_300px] gap-6 items-start">
         
         {/* Input Column */}
         <div className="bg-[#111823] border border-white/5 p-6 rounded-3xl">
@@ -186,16 +188,69 @@ export default function AdminPOSClient() {
           <ShieldCheck className="absolute -bottom-10 -left-10 w-64 h-64 text-cyan-500/5 print:hidden" />
           
           {lastTransaction ? (
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 w-full flex flex-col items-center">
+            <motion.div 
+              key={lastTransaction.orderId}
+              initial={{ opacity: 0, x: 20 }} 
+              animate={{ opacity: 1, x: 0 }} 
+              className="relative z-10 w-full flex flex-col items-center"
+            >
               <PremiumInvoice transaction={lastTransaction} showPrintButton={true} />
             </motion.div>
           ) : (
-             <div className="relative z-10 text-center opacity-40">
+             <div className="relative z-10 text-center opacity-40 py-20">
                 <Zap className="w-12 h-12 mx-auto mb-4" />
-                <p className="font-bold">Menunggu Perintah Anda</p>
-                <p className="text-xs mt-2">Data topup terakhir akan muncul di sini.</p>
+                <p className="font-bold">Menunggu Perintah</p>
+                <p className="text-xs mt-2">Invoice akan muncul di sini.</p>
              </div>
           )}
+        </div>
+
+        {/* Recent Side History */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 px-2 flex items-center gap-2">
+            <Clock className="w-4 h-4" /> Riwayat Sesi Ini
+          </h3>
+          <div className="space-y-3">
+            <AnimatePresence mode="popLayout">
+              {recentTransactions.map((t) => (
+                <motion.button
+                  key={t.orderId}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  onClick={() => setLastTransaction(t)}
+                  className={`w-full text-left p-4 rounded-2xl border transition-all relative overflow-hidden group ${
+                    lastTransaction?.orderId === t.orderId 
+                    ? "bg-blue-600/10 border-blue-500/30 ring-1 ring-blue-500/20" 
+                    : "bg-[#111823] border-white/5 hover:border-white/10"
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="text-[10px] font-mono font-bold text-slate-500 group-hover:text-blue-400 transition-colors uppercase">
+                      {t.orderId.split('-').pop()}
+                    </p>
+                    <span className="text-[9px] text-slate-600">Terbaru</span>
+                  </div>
+                  <p className="text-xs font-bold text-white truncate mb-1">{t.productName}</p>
+                  <div className="flex justify-between items-center">
+                    <p className="text-[10px] text-blue-400 font-bold">{t.gameId}</p>
+                    <p className="text-[10px] font-black text-white">Rp {t.price.toLocaleString("id-ID")}</p>
+                  </div>
+                  
+                  {lastTransaction?.orderId === t.orderId && (
+                    <motion.div layoutId="active-indicator" className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500" />
+                  )}
+                </motion.button>
+              ))}
+            </AnimatePresence>
+
+            {recentTransactions.length === 0 && (
+              <div className="border border-dashed border-white/5 rounded-2xl p-8 text-center bg-white/[0.01]">
+                <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">Kosong</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -13,12 +13,14 @@
 "use client";
 
 import { useState, useMemo, useTransition } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Receipt, Search, FileDown, CheckCircle2, Clock,
-  RefreshCcw, AlertTriangle, TrendingUp, X, DollarSign, Loader2, Wrench
+  RefreshCcw, AlertTriangle, TrendingUp, X, DollarSign, Loader2, Wrench, Eye
 } from "lucide-react";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import { manualProcessOrder, failOrder } from "../actions";
+import PremiumInvoice from "@/components/shared/PremiumInvoice";
 
 type TransactionStatus = "ALL" | "SUCCESS" | "PENDING" | "PAID" | "FAILED";
 
@@ -136,6 +138,7 @@ export default function TransactionsClient({ transactions, stats }: Props) {
   const [statusFilter, setStatusFilter] = useState<TransactionStatus>("ALL");
   const [isPending, startTransition] = useTransition();
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
   const handleManualProcess = (orderId: string) => {
     if (!confirm(`Proses ulang transaksi ${orderId} secara manual ke Digiflazz? (Pastikan dana dari pelanggan sudah benar-benar masuk)`)) return;
@@ -339,6 +342,13 @@ export default function TransactionsClient({ transactions, stats }: Props) {
                       <RefundBadge refundStatus={order.refundStatus} refundNote={order.refundNote} />
                     </td>
                     <td className="py-3.5 px-5 text-right flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => setSelectedTransaction(order)}
+                        title="Lihat Invoice"
+                        className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all shadow-sm"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                       {(order.status === "PAID" || order.status === "PENDING" || order.status === "FAILED") && (
                         <button
                           onClick={() => handleManualProcess(order.orderId)}
@@ -403,6 +413,38 @@ export default function TransactionsClient({ transactions, stats }: Props) {
           )}
         </div>
       </div>
+
+      {/* ── Invoice Modal Overlay ── */}
+      <AnimatePresence>
+        {selectedTransaction && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedTransaction(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto no-scrollbar"
+            >
+              {/* Close Button Inside Modal Container but outside invoice */}
+              <button 
+                onClick={() => setSelectedTransaction(null)}
+                className="absolute top-4 right-4 z-50 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all print:hidden"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <PremiumInvoice transaction={selectedTransaction} showPrintButton={true} />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
