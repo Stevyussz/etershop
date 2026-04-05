@@ -21,6 +21,7 @@ import { formatRupiah, slugifyBrand } from "@/lib/utils";
 import type { TopupProduct, GameConfig } from "@prisma/client";
 import { validateVoucher } from "@/app/admin/vouchers/voucher-actions";
 import { validateNickname } from "./validator-actions";
+import { QRCodeSVG } from "qrcode.react";
 
 // ─────────────────────────────────────────────
 // TYPES & CONSTANTS
@@ -202,17 +203,18 @@ function QrisModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+      className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex flex-col items-center justify-end md:justify-center p-0 md:p-4"
     >
       <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 30 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 30 }}
+        initial={{ y: "100%", opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: "100%", opacity: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="relative w-full max-w-sm bg-[#0f1923] border border-white/10 rounded-[2rem] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.8)]"
+        className="relative w-full max-w-sm bg-[#0f1923] border-t md:border border-white/10 rounded-t-[2.5rem] md:rounded-[2rem] overflow-hidden shadow-[0_-20px_60px_rgba(0,0,0,0.6)] md:shadow-[0_40px_80px_rgba(0,0,0,0.8)] max-h-[90vh] flex flex-col"
       >
-        {/* Top accent bar */}
-        <div className="h-1 w-full bg-gradient-to-r from-pink-500 via-rose-400 to-orange-400" />
+        <div className="overflow-y-auto no-scrollbar pb-6 flex-1">
+          {/* Top accent bar */}
+          <div className="h-1.5 md:h-1 w-full bg-gradient-to-r from-pink-500 via-rose-400 to-orange-400" />
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-3">
@@ -280,26 +282,30 @@ function QrisModal({
               </div>
             )}
 
-            {/* QRIS Image */}
-            {qrisData.qrImageUrl && !imgError ? (
-              <img
-                src={qrisData.qrImageUrl}
-                alt="QRIS QR Code"
-                width={220}
-                height={220}
-                className="object-contain select-none"
-                onError={() => setImgError(true)}
-              />
-            ) : (
-              // Fallback: Show qr_string information if image fails
-              <div className="text-center p-4">
-                <QrCode className="w-16 h-16 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500 text-xs font-mono break-all leading-relaxed max-w-[200px]">
-                  {qrisData.qrString.substring(0, 60)}...
-                </p>
-                <p className="text-gray-400 text-xs mt-2">Gunakan app pembayaran dan pilih "Scan QR"</p>
-              </div>
-            )}
+            {/* QRIS Rendered by react-qr-code directly from qris string */}
+            <div className="bg-white p-3 rounded-2xl flex items-center justify-center shadow-inner relative z-10 w-[240px] h-[240px]">
+              {qrisData.qrString ? (
+                 <QRCodeSVG 
+                    value={qrisData.qrString} 
+                    size={220} 
+                    level="Q" 
+                    includeMargin={false}
+                    imageSettings={{
+                      src: "/payment/qris.png",
+                      x: undefined,
+                      y: undefined,
+                      height: 48,
+                      width: 90,
+                      excavate: true,
+                    }}
+                 />
+              ) : (
+                <div className="text-center p-4">
+                  <QrCode className="w-16 h-16 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-400 text-xs mt-2">Gagal memuat QR Code</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -368,9 +374,10 @@ function QrisModal({
               onClick={onClose}
               className="w-full mt-3 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 text-xs font-bold transition-all flex items-center justify-center gap-2"
             >
-              <RefreshCcw className="w-3.5 h-3.5" /> Coba Lagi
+              <RefreshCcw className="w-3.5 h-3.5" /> Tutup & Buat Pesanan Baru
             </button>
           )}
+        </div>
         </div>
       </motion.div>
     </motion.div>
