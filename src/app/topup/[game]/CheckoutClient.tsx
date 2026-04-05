@@ -1,20 +1,20 @@
 /**
  * @file src/app/topup/[game]/CheckoutClient.tsx
  * @description Interactive checkout page for a specific game's topup packages.
+ * Uses Midtrans Core API QRIS — fully headless, no Snap popup.
  */
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Script from "next/script";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { 
-  CheckCircle2, ShieldCheck, Zap, ArrowLeft, 
-  CreditCard, BellRing, Info, Flame, ChevronDown, 
-  Ticket, Check, X, Gem 
+import {
+  CheckCircle2, ShieldCheck, Zap, ArrowLeft,
+  BellRing, Info, Flame, ChevronDown,
+  Ticket, Check, X, Gem, QrCode, Clock, RefreshCcw, AlertCircle
 } from "lucide-react";
 import { formatRupiah, slugifyBrand } from "@/lib/utils";
 // @ts-ignore
@@ -30,6 +30,14 @@ interface CheckoutClientProps {
   products: TopupProduct[];
   brand: string;
   config?: GameConfig | null;
+}
+
+interface QrisData {
+  orderId: string;
+  qrString: string;
+  qrImageUrl: string;
+  expiredAt: string;
+  amount: number;
 }
 
 /**
@@ -52,29 +60,18 @@ const GAME_DISPLAY_META: Record<string, { img: string; title: string; ctg: strin
   "PUBG MOBILE": { img: "/games/default.png", title: "PUBG Mobile", ctg: "Battle Royale", bg: "/games/default.png", dev: "Krafton" },
 };
 
-/**
- * Resolves display metadata for any brand, with graceful fallback.
- */
 function resolveCheckoutMeta(brand: string, category?: string) {
   const key = brand.trim().toUpperCase();
   const curated = GAME_DISPLAY_META[key];
-  
-  // Default values based on category
+
   let defaultImg = "/games/default.png";
   let defaultTitle = brand;
   let defaultCtg = category || "Games";
   let defaultDev = "Service Provider";
 
-  if (category === "Pulsa") {
-    defaultImg = "/games/pulsa.png";
-    defaultDev = "Telekomunikasi";
-  } else if (category === "PLN") {
-    defaultImg = "/games/pln.png";
-    defaultDev = "Energi";
-  } else if (category === "E-Money") {
-    defaultImg = "/games/emoney.png";
-    defaultDev = "Fintech";
-  }
+  if (category === "Pulsa") { defaultImg = "/games/pulsa.png"; defaultDev = "Telekomunikasi"; }
+  else if (category === "PLN") { defaultImg = "/games/pln.png"; defaultDev = "Energi"; }
+  else if (category === "E-Money") { defaultImg = "/games/emoney.png"; defaultDev = "Fintech"; }
 
   return {
     slug: slugifyBrand(brand),
@@ -86,37 +83,317 @@ function resolveCheckoutMeta(brand: string, category?: string) {
   };
 }
 
-const PAYMENT_METHODS = [
-  { id: "qris", name: "QRIS", type: "Instan", image: "/payment/qris.png", color: "from-pink-500/20 to-rose-500/10", border: "border-pink-500", highlight: "bg-pink-500" },
-  { id: "gopay", name: "GoPay", type: "E-Wallet", image: "/payment/gopay.png", color: "from-cyan-500/20 to-teal-500/10", border: "border-teal-500", highlight: "bg-teal-500" },
-  { id: "dana", name: "DANA", type: "E-Wallet", image: "/payment/dana.png", color: "from-blue-500/20 to-indigo-500/10", border: "border-blue-500", highlight: "bg-blue-500" },
-  { id: "shopeepay", name: "ShopeePay", type: "E-Wallet", image: "/payment/shopeepay.png", color: "from-orange-500/20 to-red-500/10", border: "border-orange-500", highlight: "bg-orange-500" },
-  { id: "bca", name: "BCA VA", type: "Bank", icon: "🏦", color: "from-blue-700/20 to-blue-900/10", border: "border-indigo-500", highlight: "bg-indigo-500" },
-];
+// ─────────────────────────────────────────────
+// QRIS COUNTDOWN TIMER COMPONENT
+// ─────────────────────────────────────────────
+function QrisCountdown({ expiredAt, onExpire }: { expiredAt: string; onExpire: () => void }) {
+  const [remaining, setRemaining] = useState(0);
 
+  useEffect(() => {
+    const calc = () => {
+      const ms = new Date(expiredAt).getTime() - Date.now();
+      const secs = Math.max(0, Math.floor(ms / 1000));
+      setRemaining(secs);
+      if (secs === 0) onExpire();
+    };
+    calc();
+    const t = setInterval(calc, 1000);
+    return () => clearInterval(t);
+  }, [expiredAt, onExpire]);
+
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  const pct = Math.max(0, (remaining / (15 * 60)) * 100);
+  const isUrgent = remaining < 120;
+
+  return (
+    <div className="w-full">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5" /> QR kedaluwarsa dalam
+        </span>
+        <span className={`text-sm font-black tabular-nums ${isUrgent ? "text-rose-400 animate-pulse" : "text-white"}`}>
+          {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+        </span>
+      </div>
+      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+        <motion.div
+          className={`h-full rounded-full transition-colors ${isUrgent ? "bg-rose-500" : "bg-emerald-500"}`}
+          initial={{ width: "100%" }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.5 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// QRIS MODAL COMPONENT
+// ─────────────────────────────────────────────
+function QrisModal({
+  qrisData,
+  onClose,
+  onSuccess,
+}: {
+  qrisData: QrisData;
+  onClose: () => void;
+  onSuccess: (orderId: string) => void;
+}) {
+  const [pollStatus, setPollStatus] = useState<"polling" | "paid" | "expired">("polling");
+  const [pollCount, setPollCount] = useState(0);
+  const [imgError, setImgError] = useState(false);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const MAX_POLLS = 225; // 225 × 2s = 7.5 min safety cut-off (QR lasts 15min, user can refresh)
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) clearInterval(pollRef.current);
+  }, []);
+
+  const handleExpire = useCallback(() => {
+    stopPolling();
+    setPollStatus("expired");
+  }, [stopPolling]);
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          `/api/check-payment-status?order_id=${qrisData.orderId}&t=${Date.now()}`,
+          { cache: "no-store" }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const st: string = data.status;
+          if (st === "PAID" || st === "SUCCESS") {
+            stopPolling();
+            setPollStatus("paid");
+            setTimeout(() => onSuccess(qrisData.orderId), 1000);
+          } else if (st === "FAILED") {
+            stopPolling();
+            onClose();
+          }
+        }
+      } catch {
+        // silently ignore network blips
+      }
+      setPollCount((c) => {
+        if (c + 1 >= MAX_POLLS) {
+          stopPolling();
+          setPollStatus("expired");
+        }
+        return c + 1;
+      });
+    };
+
+    // Start polling after 3s (give Midtrans time to settle)
+    const delayTimer = setTimeout(() => {
+      pollRef.current = setInterval(poll, 2000);
+    }, 3000);
+
+    return () => {
+      clearTimeout(delayTimer);
+      stopPolling();
+    };
+  }, [qrisData.orderId, stopPolling, onSuccess, onClose]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 30 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 30 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="relative w-full max-w-sm bg-[#0f1923] border border-white/10 rounded-[2rem] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.8)]"
+      >
+        {/* Top accent bar */}
+        <div className="h-1 w-full bg-gradient-to-r from-pink-500 via-rose-400 to-orange-400" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-pink-500/30">
+              <QrCode className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-white font-black text-base leading-tight">Bayar dengan QRIS</p>
+              <p className="text-slate-500 text-[10px] font-medium tracking-widest uppercase">Scan & Pay</p>
+            </div>
+          </div>
+          {pollStatus === "polling" && (
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Amount */}
+        <div className="mx-6 mb-4 bg-white/[0.04] border border-white/5 rounded-2xl px-4 py-3 flex items-center justify-between">
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">Total</span>
+          <span className="text-white font-black text-xl tracking-tight">{formatRupiah(qrisData.amount)}</span>
+        </div>
+
+        {/* QR Code Area */}
+        <div className="px-6 pb-4">
+          <div className="relative bg-white rounded-2xl p-4 flex items-center justify-center overflow-hidden" style={{ minHeight: 264 }}>
+            {/* Animated scanning line overlay when polling */}
+            {pollStatus === "polling" && (
+              <motion.div
+                className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-pink-500 to-transparent z-10"
+                animate={{ top: ["10%", "90%", "10%"] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+              />
+            )}
+
+            {pollStatus === "paid" && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="absolute inset-0 bg-emerald-500/10 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-2xl"
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: [0, 1.2, 1] }}
+                  transition={{ delay: 0.1, duration: 0.5 }}
+                  className="w-20 h-20 rounded-full bg-emerald-500 flex items-center justify-center shadow-2xl shadow-emerald-500/50"
+                >
+                  <CheckCircle2 className="w-10 h-10 text-white" />
+                </motion.div>
+                <p className="mt-4 text-emerald-700 font-black text-lg">Pembayaran Diterima!</p>
+                <p className="text-emerald-600 text-sm font-medium mt-1">Mengalihkan...</p>
+              </motion.div>
+            )}
+
+            {pollStatus === "expired" && (
+              <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-2xl">
+                <AlertCircle className="w-12 h-12 text-rose-500 mb-3" />
+                <p className="text-rose-600 font-black text-base">QR Kadaluarsa</p>
+                <p className="text-slate-500 text-xs mt-1 font-medium">Silakan buat transaksi baru</p>
+              </div>
+            )}
+
+            {/* QRIS Image */}
+            {qrisData.qrImageUrl && !imgError ? (
+              <img
+                src={qrisData.qrImageUrl}
+                alt="QRIS QR Code"
+                width={220}
+                height={220}
+                className="object-contain select-none"
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              // Fallback: Show qr_string information if image fails
+              <div className="text-center p-4">
+                <QrCode className="w-16 h-16 mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500 text-xs font-mono break-all leading-relaxed max-w-[200px]">
+                  {qrisData.qrString.substring(0, 60)}...
+                </p>
+                <p className="text-gray-400 text-xs mt-2">Gunakan app pembayaran dan pilih "Scan QR"</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Countdown & Status */}
+        <div className="px-6 pb-4 space-y-3">
+          {pollStatus === "polling" && (
+            <QrisCountdown expiredAt={qrisData.expiredAt} onExpire={handleExpire} />
+          )}
+
+          {/* Polling status indicator */}
+          <div className={`flex items-center justify-center gap-2 text-xs font-bold py-2.5 rounded-xl ${
+            pollStatus === "polling" ? "text-blue-400 bg-blue-500/10" :
+            pollStatus === "paid" ? "text-emerald-400 bg-emerald-500/10" :
+            "text-rose-400 bg-rose-500/10"
+          }`}>
+            {pollStatus === "polling" && (
+              <>
+                <RefreshCcw className="w-3.5 h-3.5 animate-spin" />
+                Menunggu konfirmasi pembayaran...
+              </>
+            )}
+            {pollStatus === "paid" && (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Pembayaran Berhasil! Sedang diproses...
+              </>
+            )}
+            {pollStatus === "expired" && (
+              <>
+                <AlertCircle className="w-3.5 h-3.5" />
+                QR Kode sudah tidak berlaku.
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-white/5 px-6 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-slate-500 text-[10px]">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>Transaksi diproses aman oleh <span className="text-slate-400 font-bold">Midtrans</span></span>
+            </div>
+            {/* QRIS Logo */}
+            <img src="/payment/qris.png" alt="QRIS" className="h-6 object-contain opacity-60" onError={(e) => (e.currentTarget.style.display = "none")} />
+          </div>
+
+          {/* Supported apps */}
+          <p className="text-[10px] text-slate-600 text-center mt-3 leading-relaxed">
+            Scan dengan GoPay · OVO · DANA · ShopeePay · BCA · Jago · dan semua e-wallet yang mendukung QRIS
+          </p>
+
+          {/* Cancel button — only when polling */}
+          {pollStatus === "polling" && (
+            <button
+              onClick={onClose}
+              className="w-full mt-3 py-2.5 rounded-xl border border-white/10 text-slate-500 hover:text-white hover:border-white/20 text-xs font-bold transition-all"
+            >
+              Batalkan Transaksi
+            </button>
+          )}
+
+          {/* New transaction button — when expired */}
+          {pollStatus === "expired" && (
+            <button
+              onClick={onClose}
+              className="w-full mt-3 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 text-xs font-bold transition-all flex items-center justify-center gap-2"
+            >
+              <RefreshCcw className="w-3.5 h-3.5" /> Coba Lagi
+            </button>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────
 export default function CheckoutClient({ products, brand, config }: CheckoutClientProps) {
   const router = useRouter();
-  
+
   const category = products[0]?.category || "Games";
   const isGame = category === "Games";
-  const isPulsa = category === "Pulsa";
-  const isPLN = category === "PLN";
-  const isEmoney = category === "E-Money";
 
-  // Use config data if available, fallback to resolveCheckoutMeta
   const meta = useMemo(() => {
     const fallback = resolveCheckoutMeta(brand, category);
     if (!config) return fallback;
-
-    return {
-      ...fallback,
-      title: config.title || brand,
-      bg: config.imageUrl || fallback.bg,
-    };
+    return { ...fallback, title: config.title || brand, bg: config.imageUrl || fallback.bg };
   }, [brand, config, category]);
 
   const needsZoneId = isGame && GAMES_REQUIRING_ZONE_ID.has(brand.trim().toUpperCase());
-  const canCheckNickname = isGame; // Only allow nickname check for Games
+  const canCheckNickname = isGame;
 
   const [gameId, setGameId] = useState("");
   const [zoneId, setZoneId] = useState("");
@@ -125,40 +402,31 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
   const [isRetrying, setIsRetrying] = useState(false);
   const [nickError, setNickError] = useState("");
   const [selectedSku, setSelectedSku] = useState<string>("");
-  const [selectedPayment, setSelectedPayment] = useState<string>("qris");
   const [isLoading, setIsLoading] = useState(false);
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherError, setVoucherError] = useState("");
   const [voucherDiscount, setVoucherDiscount] = useState(0);
   const [isVoucherApplied, setIsVoucherApplied] = useState(false);
   const [showHowTo, setShowHowTo] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [toastMsg, setToastMsg] = useState<{name: string, item: string} | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ name: string; item: string } | null>(null);
 
-  /** Validates the nickname with automatic failover support */
+  // QRIS State
+  const [qrisData, setQrisData] = useState<QrisData | null>(null);
+
   const handleCheckNickname = async () => {
     if (!gameId || gameId.length < 5) return setNickError("Masukkan ID Game valid!");
     if (needsZoneId && !zoneId) return setNickError("Masukkan Zone ID!");
-
     setIsCheckingNick(true);
     setIsRetrying(false);
     setNickError("");
     setNickname("");
-
     try {
-      // Logic for fallback notification: 
-      // If the action takes more than 6s, it's likely on the second provider
       const timeoutIndicator = setTimeout(() => setIsRetrying(true), 6000);
-
       const res = await validateNickname(brand, gameId, zoneId);
       clearTimeout(timeoutIndicator);
-
-      if (res.success && res.nickname) {
-        setNickname(res.nickname);
-      } else {
-        setNickError(res.message || "Gagal cek nickname. Cek ID kembali.");
-      }
-    } catch (e) {
+      if (res.success && res.nickname) setNickname(res.nickname);
+      else setNickError(res.message || "Gagal cek nickname. Cek ID kembali.");
+    } catch {
       setNickError("Layanan pengecekan sedang gangguan.");
     } finally {
       setIsCheckingNick(false);
@@ -166,63 +434,40 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
     }
   };
 
-  /** The currently selected product object, derived from selectedSku */
-  const selectedProduct = useMemo(
-    () => products.find((p) => p.sku === selectedSku) ?? null,
-    [products, selectedSku]
-  );
+  const selectedProduct = useMemo(() => products.find((p) => p.sku === selectedSku) ?? null, [products, selectedSku]);
 
-  /** Groups products into 'Top Up' and 'Membership/Paket' */
   const groupedProducts = useMemo(() => {
     const groups: { label: string; items: TopupProduct[]; icon: any }[] = [
       { label: "Top Up Game", items: [], icon: Zap },
       { label: "Membership & Paket", items: [], icon: Ticket },
     ];
-
     const membershipKws = ["weekly", "monthly", "pass", "membership", "paket", "bundle", "card", "season"];
-
     products.forEach((p: TopupProduct) => {
       const name = p.name.toLowerCase();
       const sku = p.sku.toLowerCase();
-      const isMembership = membershipKws.some(kw => name.includes(kw) || sku.includes(kw));
-      if (isMembership) {
-        groups[1].items.push(p);
-      } else {
-        groups[0].items.push(p);
-      }
+      const isMembership = membershipKws.some((kw) => name.includes(kw) || sku.includes(kw));
+      if (isMembership) groups[1].items.push(p);
+      else groups[0].items.push(p);
     });
-
-    return groups.filter(g => g.items.length > 0);
+    return groups.filter((g) => g.items.length > 0);
   }, [products]);
 
+  // Social proof toasts
   useEffect(() => {
     const names = ["Andi", "Rizky", "Budi", "Sarah", "Dimas", "Alya", "Kevin"];
     let isMounted = true;
-    
     const showToast = () => {
-       if(!isMounted) return;
-       if(products.length > 0) {
-         const randomName = names[Math.floor(Math.random() * names.length)];
-         const randomProduct = products[Math.floor(Math.random() * products.length)];
-         setToastMsg({ name: randomName, item: randomProduct.name });
-         
-         setTimeout(() => {
-           if(isMounted) setToastMsg(null);
-         }, 4000);
-       }
+      if (!isMounted || products.length === 0) return;
+      const randomName = names[Math.floor(Math.random() * names.length)];
+      const randomProduct = products[Math.floor(Math.random() * products.length)];
+      setToastMsg({ name: randomName, item: randomProduct.name });
+      setTimeout(() => { if (isMounted) setToastMsg(null); }, 4000);
     };
-    
     const intervalId = setInterval(showToast, Math.random() * 15000 + 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
+    return () => { isMounted = false; clearInterval(intervalId); };
   }, [products]);
 
-  const midtransScriptUrl = process.env.NEXT_PUBLIC_MIDTRANS_ENV === "production" 
-     ? "https://app.midtrans.com/snap/snap.js"
-     : "https://app.sandbox.midtrans.com/snap/snap.js";
-
+  // ── PAYMENT HANDLER (Core API QRIS) ──────────
   const handlePayment = async () => {
     if (!gameId || !selectedSku) return alert("Harap masukkan ID Game dan pilih nominal!");
     if (needsZoneId && !zoneId) return alert("Harap masukkan Zone ID!");
@@ -232,72 +477,50 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
       const res = await fetch("/api/create-transaction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sku: selectedSku, gameId, zoneId, voucherCode: isVoucherApplied ? voucherCode : null })
+        body: JSON.stringify({
+          sku: selectedSku,
+          gameId,
+          zoneId,
+          voucherCode: isVoucherApplied ? voucherCode : null,
+        }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "Gagal membuat transaksi.");
 
-      if (window.snap) {
-        window.snap.pay(data.token, {
-          onSuccess: async (result: any) => {
-            setIsVerifying(true);
-            const oid = result.order_id || data.orderId || 'trxkustom';
-
-            // ── Smart Polling: Wait until payment is fully resolved ──
-            // PENDING  = Midtrans not confirmed yet (keep polling)
-            // PAID     = Midtrans confirmed, Digiflazz still processing (keep polling)
-            // SUCCESS  = Diamond delivered ✅ → redirect
-            // FAILED   = Something went wrong → redirect (show error page)
-            const MAX_POLLS = 30;          // 30 × 1.5s = max 45 seconds
-            const POLL_INTERVAL_MS = 1500;
-
-            for (let i = 0; i < MAX_POLLS; i++) {
-              await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
-              try {
-                // Bust browser cache entirely with cache: 'no-store' + timestamp
-                const statusRes = await fetch(`/api/check-payment-status?order_id=${oid}&t=${Date.now()}`, { cache: "no-store" });
-                if (statusRes.ok) {
-                  const statusData = await statusRes.json();
-                  const currentStatus = statusData.status;
-                  // Break out as soon as Midtrans is confirmed (i.e. no longer PENDING)
-                  // Waiting for Digiflazz (which can take 15-60s) happens on the success page!
-                  if (currentStatus !== 'PENDING') {
-                    console.log(`[Checkout] Midtrans confirmed (${currentStatus}) after ${i + 1} poll(s). Redirecting...`);
-                    break;
-                  }
-                  console.log(`[Checkout] Poll ${i + 1}: status=${currentStatus}, still waiting for Midtrans...`);
-                }
-              } catch (pollErr) {
-                console.warn('[Checkout] Poll attempt failed, retrying...', pollErr);
-              }
-            }
-
-            // Redirect regardless — success page handles all statuses gracefully
-            router.push(`/topup/success?order_id=${oid}`);
-          },
-          onPending: (result: any) => router.push(`/topup/success?order_id=${result.order_id || data.orderId || 'trxkustom'}&pending=true`),
-          onError: () => router.push('/topup/error'),
-          onClose: () => console.log('User closed midtrans popup')
-        });
-      } else {
-        alert("Sistem pembayaran gagal dimuat. Periksa koneksi internet Anda.");
-      }
+      // Show QRIS modal with returned data
+      setQrisData({
+        orderId: data.orderId,
+        qrString: data.qrString,
+        qrImageUrl: data.qrImageUrl,
+        expiredAt: data.expiredAt,
+        amount: data.amount,
+      });
     } catch (e: any) {
-      alert(e.message || "Gagal memproses transaksi.");
+      alert(e.message || "Gagal memproses transaksi. Silakan coba lagi.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleQrisSuccess = useCallback(
+    (orderId: string) => {
+      setQrisData(null);
+      router.push(`/topup/success?order_id=${orderId}`);
+    },
+    [router]
+  );
+
+  const handleQrisClose = useCallback(() => {
+    setQrisData(null);
+  }, []);
+
   const handleVoucher = async () => {
     setVoucherError("");
     setVoucherDiscount(0);
     setIsVoucherApplied(false);
-    
     if (!voucherCode.trim()) return;
     if (!selectedProduct) return setVoucherError("Pilih nominal terlebih dahulu!");
-
     setIsLoading(true);
     try {
       const res = await validateVoucher(voucherCode.trim(), selectedProduct.price);
@@ -307,7 +530,7 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
       } else {
         setVoucherError(res.message || "Voucher tidak valid.");
       }
-    } catch (error) {
+    } catch {
       setVoucherError("Gagal memvalidasi voucher.");
     } finally {
       setIsLoading(false);
@@ -315,448 +538,353 @@ export default function CheckoutClient({ products, brand, config }: CheckoutClie
   };
 
   const isValidToPay = !!selectedSku && !!gameId && (!needsZoneId || !!zoneId);
-  
-  // Use flash sale price if active
   const basePrice = (selectedProduct?.isFlashSale && selectedProduct?.flashSalePrice)
-    ? selectedProduct.flashSalePrice 
-    : (selectedProduct?.price ?? 0);
-    
-  const finalPrice = isVoucherApplied ? Math.max(0, basePrice - voucherDiscount) : basePrice;
+    ? selectedProduct.flashSalePrice
+    : selectedProduct?.price ?? 0;
+  const finalPrice = Math.max(0, basePrice - voucherDiscount);
 
+  // ────────────────────────────────────────────
+  // RENDER
+  // ────────────────────────────────────────────
   return (
     <>
-      <Script src={midtransScriptUrl} data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY} strategy="lazyOnload" />
+      {/* QRIS Payment Modal */}
+      <AnimatePresence>
+        {qrisData && (
+          <QrisModal
+            qrisData={qrisData}
+            onClose={handleQrisClose}
+            onSuccess={handleQrisSuccess}
+          />
+        )}
+      </AnimatePresence>
 
-      {/* HEADER HERO SECTION */}
-      <div className="absolute top-0 left-0 w-full h-[400px] md:h-[500px] overflow-hidden -z-10 bg-[#0a0f16]">
-         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-[#0a0f16]/90 to-[#0a0f16]/30 z-10"></div>
-         <motion.div 
-           initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 0.5, scale: 1 }} transition={{ duration: 1 }}
-           className="w-full h-full relative"
-         >
-            <Image 
-              src={meta.bg} 
-              alt={meta.title} 
-              fill 
-              className="object-cover object-top filter contrast-125 brightness-75" 
-              priority 
-              unoptimized={true}
-            />
-         </motion.div>
+      {/* HERO BANNER */}
+      <div className="relative w-full h-48 md:h-64 overflow-hidden rounded-t-3xl md:rounded-3xl mb-8">
+        <div
+          className="absolute inset-0 bg-cover bg-center scale-105"
+          style={{ backgroundImage: `url(${meta.bg})`, filter: "brightness(0.4) saturate(0.8)" }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#080d18] via-[#080d18]/40 to-transparent" />
+        <div className="absolute bottom-0 left-0 p-6 md:p-8 flex items-end gap-4">
+          <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl shadow-black/40 shrink-0">
+            <Image src={meta.img} alt={meta.title} fill className="object-cover" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-fuchsia-400 bg-fuchsia-500/10 px-2 py-0.5 rounded-full border border-fuchsia-500/20">{meta.ctg}</span>
+              {products.some((p: TopupProduct) => p.isFlashSale) && (
+                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 flex items-center gap-1 animate-pulse">
+                  <Flame className="w-3 h-3" /> Flash Sale
+                </span>
+              )}
+            </div>
+            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight">{meta.title}</h1>
+            <p className="text-slate-400 text-xs font-medium mt-1">{meta.dev}</p>
+          </div>
+        </div>
+        <Link href="/topup" className="absolute top-4 left-4 md:top-6 md:left-6 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:bg-black/60 transition-all">
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
       </div>
 
-      <div className="max-w-6xl mx-auto pt-6 px-0 md:px-0">
-         {/* Title Block */}
-         <div className="flex items-center gap-4 mb-8">
-            <Link href="/topup" className="flex-shrink-0 p-3 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors backdrop-blur-md">
-               <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-               <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-lg">
-                   {meta.title}
-               </h1>
-               <div className="flex flex-wrap items-center gap-2 mt-2">
-                  <span className="bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded text-xs font-bold border border-blue-500/20">{meta.ctg}</span>
-                  <span className="text-slate-300 text-xs font-medium bg-white/5 px-2.5 py-1 rounded">Dev: {meta.dev}</span>
-                  <span className="text-emerald-400 text-xs font-bold flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded"><Zap className="w-3 h-3"/> Proses Instan</span>
-               </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* LEFT COLUMN */}
+        <div className="flex flex-col gap-6">
+
+          {/* STEP 1: ID INPUT */}
+          <motion.div
+            initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}
+            className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-8 shadow-xl"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-fuchsia-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg shadow-fuchsia-600/20">1</div>
+              <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">ID {isGame ? "Game" : "Tujuan"}</h2>
             </div>
-         </div>
 
-         {/* MAIN CHECKOUT GRID */}
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
-           
-           {/* LEFT COLUMN: Steps 1 & 2 */}
-           <div className="lg:col-span-2 flex flex-col gap-6">
-             
-             {/* STEP 1: ACCOUNT DATA */}
-             <motion.div 
-               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-               className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-8 shadow-xl"
-             >
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-500/20">
-                      1
-                    </div>
-                    <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Data Akun</h2>
-                 </div>
-                 <button 
-                   onClick={() => setShowHowTo(!showHowTo)}
-                   className="text-blue-400 text-sm font-semibold flex items-center gap-1 hover:text-blue-300 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/20 w-max"
-                 >
-                   Petunjuk <ChevronDown className={`w-4 h-4 transition-transform ${showHowTo ? 'rotate-180' : ''}`} />
-                 </button>
-               </div>
-
-               <AnimatePresence>
-                 {showHowTo && (
-                   <motion.div 
-                     initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                     className="overflow-hidden mb-6"
-                   >
-                     <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-slate-300 text-sm leading-relaxed">
-                        Masukkan User ID dan Zone ID akun Anda. Anda bisa menekan tombol petunjuk ini untuk melihat cara menemukannya di dalam game. Pastikan data yang dimasukkan sudah benar untuk menghindari kesalahan pengiriman.
-                     </div>
-                   </motion.div>
-                 )}
-               </AnimatePresence>
-
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">
-                      {isPulsa || isEmoney ? "Nomor HP" : isPLN ? "ID Pelanggan / Nomor Meter" : "User ID"}
-                    </label>
-                    <div className="relative">
-                      <input 
-                        type="text" value={gameId} onChange={(e) => setGameId(e.target.value)}
-                        placeholder={isPulsa || isEmoney ? "0812xxxx" : isPLN ? "Masukkan ID Pelanggan" : "Masukkan User ID"}
-                        className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-4 px-6 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
-                      />
-                      {canCheckNickname && !needsZoneId && gameId.length > 4 && !nickname && (
-                        <button 
-                          onClick={handleCheckNickname}
-                          disabled={isCheckingNick}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-500/20"
-                        >
-                          {isCheckingNick ? (
-                            <div className="flex items-center gap-2">
-                               <Loader2 className="w-3 h-3 animate-spin"/>
-                               {isRetrying && <span>RETRYING...</span>}
-                            </div>
-                          ) : "CEK"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-slate-500">
+                  {isGame ? "User ID" : "No. HP / ID Pelanggan"}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text" value={gameId} onChange={(e) => { setGameId(e.target.value); setNickname(""); setNickError(""); }}
+                    placeholder={isGame ? "Contoh: 123456789" : "Nomor tujuan"}
+                    className="flex-1 bg-[#0a0f16] border border-white/10 rounded-2xl py-3.5 px-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-fuchsia-500/50 transition-all font-mono"
+                  />
                   {needsZoneId && (
-                    <div className="space-y-2">
-                      <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">Zone ID</label>
-                      <div className="relative">
-                        <input 
-                          type="text" value={zoneId} onChange={(e) => setZoneId(e.target.value)}
-                          placeholder="Masukkan Zone ID"
-                          className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-4 px-6 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-colors"
-                        />
-                        {canCheckNickname && gameId.length > 4 && zoneId.length >= 4 && !nickname && (
-                          <button 
-                            onClick={handleCheckNickname}
-                            disabled={isCheckingNick}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-500/20"
-                          >
-                            {isCheckingNick ? (
-                               <div className="flex items-center gap-2">
-                                  <Loader2 className="w-3 h-3 animate-spin"/>
-                                  {isRetrying && <span>RETRYING...</span>}
-                               </div>
-                            ) : "CEK"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    <input
+                      type="text" value={zoneId} onChange={(e) => { setZoneId(e.target.value); setNickname(""); }}
+                      placeholder="Zone ID"
+                      className="w-24 md:w-32 bg-[#0a0f16] border border-white/10 rounded-2xl py-3.5 px-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-fuchsia-500/50 transition-all font-mono"
+                    />
                   )}
-               </div>
-
-               <AnimatePresence>
-                 {(isCheckingNick && isRetrying) && (
-                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[10px] text-blue-400 font-bold mt-3 ml-1 animate-pulse">
-                       ⏳ Server utama sedang sibuk, beralih ke server cadangan...
-                    </motion.p>
-                 )}
-                 {(nickname || nickError) && (
-                   <motion.div 
-                     initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                     className="mt-6"
-                   >
-                     {nickname ? (
-                       <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between shadow-[0_0_20px_rgba(16,185,129,0.1)]">
-                          <div className="flex items-center gap-3">
-                             <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                             </div>
-                             <div>
-                                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Username Ditemukan</div>
-                                <div className="text-xl font-black text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">{nickname}</div>
-                             </div>
-                          </div>
-                          <div className="hidden sm:block text-[10px] font-bold text-emerald-500/60 mr-2">Verified ✅</div>
-                       </div>
-                     ) : (
-                       <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-3">
-                          <X className="w-5 h-5 text-rose-500" />
-                          <span className="text-sm font-bold text-rose-400">{nickError}</span>
-                       </div>
-                     )}
-                   </motion.div>
-                 )}
-               </AnimatePresence>
-             </motion.div>
-
-             {/* STEP 2: SELECT NOMINAL */}
-             <motion.div 
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
-                className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-8 shadow-xl"
-             >
-                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-fuchsia-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg shadow-fuchsia-600/20">
-                      2
-                    </div>
-                    <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Pilih Nominal</h2>
-                  </div>
-                  <div className="hidden sm:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white/5 px-4 py-1.5 rounded-full border border-white/5">
-                    <Flame className="w-3.5 h-3.5" /> Terlaris
-                  </div>
                 </div>
-                
-                <div className="space-y-10">
-                  {groupedProducts.map((group: { label: string; items: TopupProduct[]; icon: any }) => {
-                    const GroupIcon = group.icon;
+              </div>
+
+              {canCheckNickname && (
+                <button
+                  onClick={handleCheckNickname}
+                  disabled={isCheckingNick || !gameId}
+                  className="w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-fuchsia-500/30 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isCheckingNick ? (
+                    <><Loader2 className="w-4 h-4" />{isRetrying ? "Mencoba ulang..." : "Mengecek..."}</>
+                  ) : (
+                    <><Gem className="w-4 h-4 text-fuchsia-400" /> Cek Nickname</>
+                  )}
+                </button>
+              )}
+
+              <AnimatePresence>
+                {nickname && (
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+                    className="flex items-center gap-3 bg-fuchsia-500/10 border border-fuchsia-500/20 p-3 rounded-2xl"
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-fuchsia-400 shrink-0" />
+                    <div>
+                      <p className="text-[10px] text-fuchsia-400/80 font-bold uppercase tracking-widest">Nickname terverifikasi</p>
+                      <p className="text-white font-black text-sm mt-0.5">{nickname}</p>
+                    </div>
+                  </motion.div>
+                )}
+                {nickError && (
+                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-rose-500 text-xs font-bold flex items-center gap-1.5 ml-1">
+                    <Info className="w-3.5 h-3.5" /> {nickError}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+
+              <button onClick={() => setShowHowTo(!showHowTo)} className="text-[10px] text-slate-500 hover:text-white transition-colors flex items-center gap-1 font-bold mt-1">
+                <Info className="w-3 h-3" /> Cara menemukan User ID <ChevronDown className={`w-3 h-3 transition-transform ${showHowTo ? "rotate-180" : ""}`} />
+              </button>
+              <AnimatePresence>
+                {showHowTo && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                    className="bg-[#0a0f16] border border-white/5 rounded-2xl p-4 text-slate-400 text-xs leading-relaxed space-y-1.5 overflow-hidden"
+                  >
+                    <p className="font-bold text-white text-[11px] mb-2">Cara menemukan User ID:</p>
+                    <p>• <span className="text-white font-bold">Mobile Legends:</span> Buka profil → salin angka sebelum ( ) sebagai User ID, dan angka di dalam ( ) sebagai Zone ID.</p>
+                    <p>• <span className="text-white font-bold">Free Fire:</span> Buka profil akun → salin angka 9-10 digit di bawah nama.</p>
+                    <p>• <span className="text-white font-bold">PUBG Mobile:</span> Buka profil → lihat Character ID di bawah nama.</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+
+          {/* STEP 2: SELECT PRODUCT */}
+          <motion.div
+            initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
+            className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-8 shadow-xl flex-1"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-600/20">2</div>
+              <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Pilih Nominal</h2>
+            </div>
+
+            {groupedProducts.map(({ label, items, icon: GroupIcon }) => (
+              <div key={label} className="mb-6 last:mb-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <GroupIcon className="w-4 h-4 text-slate-500" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {items.map((p: TopupProduct) => {
+                    const isSelected = selectedSku === p.sku;
+                    const isGangguan = p.isGangguan;
                     return (
-                      <div key={group.label} className="space-y-4">
-                        <div className="flex items-center gap-2 text-slate-400 mb-4 ml-1">
-                          <GroupIcon className="w-4 h-4 text-fuchsia-500" />
-                          <h3 className="text-sm font-black uppercase tracking-widest">{group.label}</h3>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-                          {group.items.map((p: TopupProduct, idx: number) => {
-                            const isSelected = selectedSku === p.sku;
-                            const isHot = idx === 0 && group.label === "Top Up Game";
-                            const isDiamond = p.name.toLowerCase().includes("diamond");
-                            return (
-                              <button
-                                key={p.sku}
-                                onClick={() => {
-                                  if (!p.isGangguan) setSelectedSku(p.sku);
-                                }}
-                                disabled={p.isGangguan}
-                                className={`relative p-4 md:p-5 text-left flex flex-col justify-center transition-all duration-200 rounded-2xl border overflow-hidden bg-[#0a0f16] group ${
-                                  p.isGangguan
-                                    ? "opacity-50 cursor-not-allowed border-rose-500/20 bg-rose-500/5"
-                                    : isSelected 
-                                      ? "border-fuchsia-400/80 bg-fuchsia-500/5 ring-1 ring-fuchsia-400/50 shadow-[0_0_15px_rgba(217,70,239,0.15)]" 
-                                      : "border-white/5 hover:border-white/20 hover:bg-[#1a2333]"
-                                }`}
-                              >
-                                {p.isGangguan && (
-                                  <div className="absolute inset-0 bg-[#0a0f16]/60 backdrop-blur-[1px] z-20 flex items-center justify-center">
-                                    <span className="bg-rose-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded shadow-lg flex items-center gap-1.5">
-                                      <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> Gangguan
-                                    </span>
-                                  </div>
-                                )}
-                                {isHot && !isSelected && (
-                                   <span className="absolute -right-6 top-2 bg-gradient-to-r from-rose-600 to-red-600 text-[8px] font-black tracking-widest text-white px-8 py-0.5 rotate-45 z-10 shadow-md">HOT</span>
-                                )}
-                                
-                                {isDiamond && (
-                                   <Gem className="w-4 h-4 text-cyan-400 mb-2 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
-                                )}
-                                
-                                <span className="text-white font-bold text-sm md:text-base mb-1 z-10 leading-tight">{p.name}</span>
-                                {p.isFlashSale && p.flashSalePrice ? (
-                                  <div className="font-semibold z-10 flex flex-col text-xs md:text-sm">
-                                    <span className="text-rose-400 line-through text-[10px] md:text-xs">
-                                      {formatRupiah(p.price)}
-                                    </span>
-                                    <span className="text-amber-400 font-extrabold drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]">
-                                      {formatRupiah(p.flashSalePrice)}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <span className={`font-semibold z-10 text-xs md:text-sm transition-colors ${isSelected ? 'text-fuchsia-400' : 'text-slate-400'}`}>
-                                    {formatRupiah(p.price)}
-                                  </span>
-                                )}
-                                
-                                <div className={`absolute inset-0 bg-gradient-to-br from-fuchsia-600/10 to-transparent transition-opacity duration-300 ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                      <button
+                        key={p.sku}
+                        onClick={() => { if (!isGangguan) { setSelectedSku(p.sku); setVoucherDiscount(0); setIsVoucherApplied(false); } }}
+                        disabled={isGangguan}
+                        className={`relative flex flex-col items-center justify-center p-3 rounded-2xl border transition-all min-h-[72px] overflow-hidden ${
+                          isGangguan
+                            ? "opacity-50 cursor-not-allowed border-white/5 bg-[#0a0f16]"
+                            : isSelected
+                            ? "bg-gradient-to-br from-fuchsia-600/20 to-blue-600/10 border-fuchsia-500/40 shadow-xl shadow-fuchsia-500/10 scale-[1.03]"
+                            : "bg-[#0a0f16] border-white/5 hover:border-white/20 hover:bg-white/[0.03] active:scale-95"
+                        }`}
+                      >
+                        {isGangguan && (
+                          <span className="absolute top-1 right-1 text-[9px] font-bold text-rose-400 bg-rose-500/20 px-1.5 py-0.5 rounded-full border border-rose-500/30">🔴 Gangguan</span>
+                        )}
+                        {isSelected && !isGangguan && (
+                          <div className="absolute top-1.5 right-1.5 w-4 h-4 bg-fuchsia-500 rounded-full flex items-center justify-center shadow-lg shadow-fuchsia-500/50">
+                            <Check className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        )}
+                        {p.isFlashSale && p.flashSalePrice && (
+                          <span className="absolute top-1 left-1 text-[8px] font-black text-amber-400 bg-amber-500/20 px-1.5 py-0.5 rounded-full border border-amber-500/30 uppercase tracking-wide flex items-center gap-0.5">
+                            <Flame className="w-2 h-2" /> FS
+                          </span>
+                        )}
+                        <span className="text-white font-bold text-sm md:text-base mb-1 z-10 leading-tight text-center">{p.name}</span>
+                        {p.isFlashSale && p.flashSalePrice ? (
+                          <div className="font-semibold z-10 flex flex-col text-xs md:text-sm items-center">
+                            <span className="text-rose-400 line-through text-[10px] md:text-xs">{formatRupiah(p.price)}</span>
+                            <span className="text-amber-400 font-extrabold drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]">{formatRupiah(p.flashSalePrice)}</span>
+                          </div>
+                        ) : (
+                          <span className={`font-semibold z-10 text-xs md:text-sm transition-colors ${isSelected ? "text-fuchsia-400" : "text-slate-400"}`}>{formatRupiah(p.price)}</span>
+                        )}
+                        <div className={`absolute inset-0 bg-gradient-to-br from-fuchsia-600/10 to-transparent transition-opacity duration-300 ${isSelected ? "opacity-100" : "opacity-0"}`} />
+                      </button>
                     );
                   })}
                 </div>
-             </motion.div>
-           </div>
+              </div>
+            ))}
+          </motion.div>
+        </div>
 
-           {/* RIGHT COLUMN: Step 3 & Summary */}
-           <div className="flex flex-col gap-6">
-             
-             {/* STEP 3: PAYMENT */}
-             <motion.div 
-               initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.2 }}
-               className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-8 shadow-xl"
-             >
-                <div className="flex items-center gap-3 mb-8">
-                  <div className="w-10 h-10 bg-emerald-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg shadow-emerald-600/20">
-                    3
+        {/* RIGHT COLUMN */}
+        <div className="flex flex-col gap-6">
+
+          {/* STEP 3: PAYMENT METHOD (QRIS Only) */}
+          <motion.div
+            initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.2 }}
+            className="bg-[#111823] border border-white/5 rounded-3xl p-5 md:p-8 shadow-xl"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-emerald-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg shadow-emerald-600/20">3</div>
+              <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Pembayaran</h2>
+            </div>
+
+            {/* QRIS Selected Card */}
+            <div className="bg-gradient-to-r from-pink-500/20 to-rose-500/10 border border-pink-500/40 rounded-2xl p-4 flex items-center gap-4 relative overflow-hidden shadow-lg shadow-pink-500/10">
+              <div className="absolute left-0 top-0 h-full w-1.5 bg-pink-500 rounded-l-2xl" />
+              <div className="w-14 h-10 bg-white/10 border border-white/10 rounded-xl flex items-center justify-center p-1.5 ml-2">
+                <img src="/payment/qris.png" alt="QRIS" className="object-contain h-full" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-black text-base">QRIS</p>
+                <p className="text-pink-300/70 text-[10px] uppercase font-bold tracking-widest">GoPay · OVO · DANA · ShopeePay · dan semua e-wallet</p>
+              </div>
+              <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow shrink-0">
+                <Check className="w-3 h-3 text-pink-600" />
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2.5 text-xs text-slate-500 bg-white/[0.03] border border-white/5 rounded-xl px-3 py-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span>Scan QR Code menggunakan aplikasi e-wallet atau mobile banking apapun yang mendukung QRIS.</span>
+            </div>
+
+            {/* VOUCHER SECTION */}
+            <div className="mt-8 pt-8 border-t border-white/5">
+              <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1 block mb-3">Promo / Voucher</label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text" value={voucherCode} onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                    placeholder="KODE PROMO"
+                    className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-3 px-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 uppercase font-black tracking-widest text-sm transition-all"
+                  />
+                </div>
+                <button
+                  onClick={handleVoucher}
+                  disabled={isLoading || !voucherCode}
+                  className="bg-white hover:bg-slate-200 disabled:opacity-50 text-black font-black px-6 rounded-2xl text-xs transition-all flex items-center gap-2"
+                >
+                  {isLoading ? <Loader2 className="w-4 h-4" /> : "CEK"}
+                </button>
+              </div>
+              {voucherError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-rose-500 text-[10px] font-bold mt-2 ml-1">{voucherError}</motion.p>}
+              {isVoucherApplied && (
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                  className="flex items-center gap-2 text-emerald-400 text-[10px] font-bold mt-2 ml-1 bg-emerald-500/10 w-fit px-2 py-1 rounded-lg border border-emerald-500/20"
+                >
+                  <CheckCircle2 className="w-3 h-3" /> Voucher berhasil diterapkan! Potongan {formatRupiah(voucherDiscount)}
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* ORDER SUMMARY */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.3 }}
+            className="bg-[#111823] border border-white/5 rounded-3xl p-8 shadow-xl relative overflow-hidden"
+          >
+            <div className="relative z-10 space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white tracking-tight">Ringkasan</h3>
+                <ShieldCheck className="w-5 h-5 text-emerald-500" />
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Produk</span>
+                  <span className="text-white font-medium text-right max-w-[150px] truncate">{selectedProduct?.name || "—"}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Pembayaran</span>
+                  <span className="text-white font-medium flex items-center gap-1.5">
+                    <QrCode className="w-3.5 h-3.5 text-pink-400" /> QRIS
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Harga Dasar</span>
+                  <span className="text-white font-medium">{formatRupiah(basePrice)}</span>
+                </div>
+                {isVoucherApplied && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-emerald-500">Diskon Voucher</span>
+                    <span className="text-emerald-500 font-bold">-{formatRupiah(voucherDiscount)}</span>
                   </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Pembayaran</h2>
+                )}
+                <div className="h-px bg-white/5 my-4" />
+                <div className="flex justify-between items-end">
+                  <span className="text-slate-500 text-xs pb-1">Total Pembayaran</span>
+                  <span className="text-2xl font-black text-white">{formatRupiah(finalPrice)}</span>
                 </div>
+              </div>
 
-                <div className="space-y-3">
-                   {PAYMENT_METHODS.map((pm) => (
-                     <button
-                        key={pm.id}
-                        onClick={() => setSelectedPayment(pm.id)}
-                        className={`w-full group relative overflow-hidden flex items-center justify-between p-4 rounded-2xl border transition-all ${
-                          selectedPayment === pm.id 
-                            ? `bg-gradient-to-r ${pm.color} ${pm.border} border-opacity-50 shadow-lg` 
-                            : "bg-[#0a0f16] border-white/5 hover:border-white/20"
-                        }`}
-                     >
-                       <div className="flex items-center gap-4 z-10">
-                          <div className={`w-12 h-8 bg-white/5 rounded-lg flex items-center justify-center p-1 border border-white/5 transition-colors ${selectedPayment === pm.id ? 'bg-white/10' : ''}`}>
-                             {pm.image ? <Image src={pm.image} alt={pm.name} width={40} height={20} className="object-contain" /> : <span className="text-lg">{pm.icon}</span>}
-                          </div>
-                          <div className="text-left">
-                            <div className="text-white font-bold text-sm">{pm.name}</div>
-                            <div className="text-[10px] uppercase tracking-widest text-slate-500 font-black">{pm.type}</div>
-                          </div>
-                       </div>
-                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all z-10 ${selectedPayment === pm.id ? 'bg-white border-transparent' : 'border-white/10'}`}>
-                          {selectedPayment === pm.id && <Check className="w-3 h-3 text-emerald-600" />}
-                       </div>
-                       {selectedPayment === pm.id && (
-                         <motion.div layoutId="pay-highlight" className={`absolute left-0 w-1.5 h-full ${pm.highlight}`} />
-                       )}
-                     </button>
-                   ))}
-                </div>
+              {/* PAY BUTTON */}
+              <button
+                onClick={handlePayment}
+                disabled={!isValidToPay || isLoading}
+                className={`w-full py-5 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl ${
+                  isValidToPay && !isLoading
+                    ? "bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white shadow-pink-600/30 active:scale-95"
+                    : "bg-white/5 text-slate-600 cursor-not-allowed"
+                }`}
+              >
+                {isLoading ? <Loader2 className="w-6 h-6" /> : <QrCode className="w-6 h-6" />}
+                {isLoading ? "Membuat QR Code..." : "BAYAR PAKAI QRIS"}
+              </button>
 
-                {/* VOUCHER SECTION */}
-                <div className="mt-8 pt-8 border-t border-white/5">
-                   <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1 block mb-3">Promo / Voucher</label>
-                   <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <input 
-                          type="text" value={voucherCode} onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                          placeholder="KODE PROMO"
-                          className="w-full bg-[#0a0f16] border border-white/10 rounded-2xl py-3 px-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 uppercase font-black tracking-widest text-sm"
-                        />
-                      </div>
-                      <button 
-                         onClick={handleVoucher}
-                         disabled={isLoading || !voucherCode}
-                         className="bg-white hover:bg-slate-200 disabled:opacity-50 text-black font-black px-6 rounded-2xl text-xs transition-all flex items-center gap-2"
-                      >
-                         {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "CEK"}
-                      </button>
-                   </div>
-                   {voucherError && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-rose-500 text-[10px] font-bold mt-2 ml-1">{voucherError}</motion.p>}
-                   {isVoucherApplied && (
-                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2 text-emerald-400 text-[10px] font-bold mt-2 ml-1 bg-emerald-500/10 w-fit px-2 py-1 rounded-lg border border-emerald-500/20">
-                        <CheckCircle2 className="w-3 h-3" /> Voucher berhasil diterapkan! Potongan {formatRupiah(voucherDiscount)}
-                     </motion.div>
-                   )}
-                </div>
-             </motion.div>
+              <p className="text-[10px] text-center text-slate-600 mt-4 leading-relaxed">
+                Dengan menekan tombol di atas, Anda menyetujui <span className="text-slate-400 underline">Syarat & Ketentuan</span> kami. Proses pengiriman biasanya memakan waktu 1–5 menit.
+              </p>
+            </div>
 
-             {/* ORDER SUMMARY BLOCK */}
-             <motion.div 
-               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.3 }}
-               className="bg-[#111823] border border-white/5 rounded-3xl p-8 shadow-xl relative overflow-hidden"
-             >
-                <div className="relative z-10 space-y-6">
-                   <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-white tracking-tight">Ringkasan</h3>
-                      <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                   </div>
-
-                   <div className="space-y-4">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">Produk</span>
-                        <span className="text-white font-medium text-right max-w-[150px] truncate">{selectedProduct?.name || "-"}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">Pembayaran</span>
-                        <span className="text-white font-medium">{PAYMENT_METHODS.find(p => p.id === selectedPayment)?.name}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">Harga Dasar</span>
-                        <span className="text-white font-medium">{formatRupiah(basePrice)}</span>
-                      </div>
-                      {isVoucherApplied && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-emerald-500">Diskon Voucher</span>
-                          <span className="text-emerald-500 font-bold">-{formatRupiah(voucherDiscount)}</span>
-                        </div>
-                      )}
-                      
-                      <div className="h-px bg-white/5 my-4" />
-                      
-                      <div className="flex justify-between items-end">
-                        <span className="text-slate-500 text-xs pb-1">Total Pembayaran</span>
-                        <span className="text-2xl font-black text-white">{formatRupiah(finalPrice)}</span>
-                      </div>
-                   </div>
-
-                   <button 
-                     onClick={handlePayment}
-                     disabled={!isValidToPay || isLoading}
-                     className={`w-full py-5 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl ${
-                       isValidToPay && !isLoading
-                         ? "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20 active:scale-95" 
-                         : "bg-white/5 text-slate-600 cursor-not-allowed"
-                     }`}
-                   >
-                     {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6" />}
-                     KONFIRMASI TOP UP
-                   </button>
-                   
-                   <p className="text-[10px] text-center text-slate-600 mt-4 leading-relaxed">
-                     Dengan menekan tombol di atas, Anda menyetujui <span className="text-slate-400 underline">Syarat & Ketentuan</span> kami. Proses pengiriman biasanya memakan waktu 1-5 menit.
-                   </p>
-                </div>
-                
-                {/* Subtle Decorative Elements */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl -z-10" />
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-fuchsia-500/5 blur-3xl -z-10" />
-             </motion.div>
-           </div>
-
-         </div>
+            {/* Decorative glows */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 blur-3xl -z-10" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-rose-500/5 blur-3xl -z-10" />
+          </motion.div>
+        </div>
       </div>
 
-      {/* FLOATING TOASTS (Social Proof) */}
+      {/* SOCIAL PROOF TOAST */}
       <AnimatePresence>
         {toastMsg && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: 50, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 50, scale: 0.9 }}
             className="fixed bottom-6 right-6 z-50 bg-[#1a2333]/90 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl flex items-center gap-4 max-w-sm"
           >
-             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-fuchsia-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
-                <BellRing className="w-5 h-5" />
-             </div>
-             <div>
-                <div className="text-white text-xs font-bold">{toastMsg.name} baru saja membeli</div>
-                <div className="text-fuchsia-400 text-[10px] font-black uppercase tracking-widest mt-0.5">{toastMsg.item}</div>
-                <div className="text-slate-500 text-[9px] mt-1">1 menit yang lalu • Verified ✅</div>
-             </div>
-             <button onClick={() => setToastMsg(null)} className="ml-2 text-slate-500 hover:text-white">
-                <X className="w-4 h-4" />
-             </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* ── VERIFICATION OVERLAY ── */}
-      <AnimatePresence>
-        {isVerifying && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-[#0a0f16]/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center"
-          >
-            <div className="w-24 h-24 rounded-full bg-blue-500/10 flex items-center justify-center mb-8 relative">
-              <div className="absolute inset-0 animate-ping rounded-full border-2 border-blue-400/40 opacity-60" />
-              <ShieldCheck className="w-12 h-12 text-blue-400 animate-pulse" />
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-fuchsia-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
+              <BellRing className="w-5 h-5" />
             </div>
-            <h3 className="text-2xl md:text-3xl font-black text-white mb-3 tracking-tight">Mengkonfirmasi Pembayaran...</h3>
-            <p className="text-slate-400 max-w-sm font-medium">Sistem sedang memverifikasi status pembayaran Anda. Mohon <span className="text-white font-bold">jangan tutup halaman ini</span>.</p>
-            <p className="text-slate-600 text-xs mt-4">Proses ini biasanya selesai dalam 5–15 detik.</p>
+            <div>
+              <div className="text-white text-xs font-bold">{toastMsg.name} baru saja membeli</div>
+              <div className="text-fuchsia-400 text-[10px] font-black uppercase tracking-widest mt-0.5">{toastMsg.item}</div>
+              <div className="text-slate-500 text-[9px] mt-1">1 menit yang lalu • Verified ✅</div>
+            </div>
+            <button onClick={() => setToastMsg(null)} className="ml-2 text-slate-500 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

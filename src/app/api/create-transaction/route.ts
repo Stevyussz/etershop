@@ -1,14 +1,15 @@
 /**
  * @file src/app/api/create-transaction/route.ts
- * @description API route for creating a new topup transaction.
+ * @description API route for creating a new topup transaction via Midtrans Core API (QRIS).
  *
  * Flow:
  * 1. Validates request body (sku, gameId are required; zoneId is optional).
  * 2. Looks up the product in our database to get the final selling price.
- * 3. Creates a Midtrans Snap transaction to get a payment token.
+ * 3. Calls Midtrans Core API POST /v2/charge with payment_type: "qris".
  * 4. Records a PENDING transaction in our database.
- * 5. Returns the Midtrans token to the client for rendering the payment popup.
+ * 5. Returns { orderId, qrString, qrImageUrl, expiredAt } to the client.
  *
+ * The client renders the QRIS QR code and polls /api/check-payment-status.
  * The actual product delivery happens AFTER payment, via the Midtrans webhook.
  * See: /api/midtrans-webhook/route.ts
  */
@@ -16,7 +17,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { generateOrderId } from "@/lib/utils";
-
 import { validateVoucher } from "@/app/admin/vouchers/voucher-actions";
 
 export async function POST(req: NextRequest) {
@@ -34,48 +34,32 @@ export async function POST(req: NextRequest) {
 
     // ── Product Lookup ────────────────────────────────────
     const [product, settings] = await Promise.all([
-      prisma.topupProduct.findUnique({
-        where: { sku },
-      }),
-      prisma.siteSettings.findUnique({
-        where: { id: "main" },
-      })
+      prisma.topupProduct.findUnique({ where: { sku } }),
+      prisma.siteSettings.findUnique({ where: { id: "main" } }),
     ]);
 
     if (!product) {
-      return NextResponse.json(
-        { error: "Produk tidak ditemukan. Mungkin sudah tidak tersedia." },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Produk tidak ditemukan. Mungkin sudah tidak tersedia." }, { status: 404 });
     }
-
     if (!product.isActive) {
-      return NextResponse.json(
-        { error: "Produk ini sedang tidak aktif. Silakan pilih produk lain." },
-        { status: 410 }
-      );
+      return NextResponse.json({ error: "Produk ini sedang tidak aktif. Silakan pilih produk lain." }, { status: 410 });
     }
-    
     if (product.isGangguan) {
-      return NextResponse.json(
-        { error: "Server penyedia sedang gangguan untuk produk ini. Mohon coba produk lain." },
-        { status: 503 }
-      );
+      return NextResponse.json({ error: "Server penyedia sedang gangguan untuk produk ini. Mohon coba produk lain." }, { status: 503 });
     }
 
     // ── Flash Sale Logic ──────────────────────────────────
     let basePrice = product.price;
     const now = new Date();
-    // Verify if Flash Sale is active globally and for this specific product
     if (
-      product.isFlashSale && 
-      product.flashSalePrice && 
-      settings?.countdownEnd && 
+      product.isFlashSale &&
+      product.flashSalePrice &&
+      settings?.countdownEnd &&
       new Date(settings.countdownEnd) > now
     ) {
       basePrice = product.flashSalePrice;
     }
-    
+
     // ── Voucher Validation ────────────────────────────────
     let discount = 0;
     let voucherId = null;
@@ -87,23 +71,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const finalPrice = Math.max(0, basePrice - discount);
+    const finalPrice = Math.max(1000, Math.round(basePrice - discount)); // Midtrans QRIS min Rp 1.000
 
-    // ── Payment Gateway (Midtrans) ────────────────────────
+    // ── Payment Gateway: Midtrans Core API QRIS ──────────
     const orderId = generateOrderId();
     const serverKey = process.env.MIDTRANS_SERVER_KEY || "";
     const isProd = process.env.MIDTRANS_IS_PRODUCTION === "true";
     const midtransBaseUrl = isProd
-      ? "https://app.midtrans.com/snap/v1/transactions"
-      : "https://app.sandbox.midtrans.com/snap/v1/transactions";
+      ? "https://api.midtrans.com/v2/charge"
+      : "https://api.sandbox.midtrans.com/v2/charge";
 
     const authString = Buffer.from(`${serverKey}:`).toString("base64");
-
-    // CRITICAL: notification_url must be hardcoded so Midtrans always calls our webhook,
-    // even if the Midtrans dashboard notification URL is not configured.
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://etershop.yusrilastaghina.my.id";
 
-    const midtransPayload = {
+    const chargePayload = {
+      payment_type: "qris",
       transaction_details: {
         order_id: orderId,
         gross_amount: finalPrice,
@@ -117,8 +99,12 @@ export async function POST(req: NextRequest) {
           category: product.brand,
         },
       ],
-      callbacks: {
-        finish: `${appUrl}/topup/success?order_id=${orderId}`,
+      qris: {
+        acquirer: "gopay", // Gopay acquirer supports widest merchant compatibility
+      },
+      custom_expiry: {
+        expiry_duration: 15,
+        unit: "minute",
       },
       notification_url: `${appUrl}/api/midtrans-webhook`,
     };
@@ -130,21 +116,33 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
         Authorization: `Basic ${authString}`,
       },
-      body: JSON.stringify(midtransPayload),
+      body: JSON.stringify(chargePayload),
     });
 
-    if (!midtransRes.ok) {
-      const errorBody = await midtransRes.text();
-      console.error("[Midtrans] Failed to create transaction:", errorBody);
+    const midtransData = await midtransRes.json();
+
+    if (!midtransRes.ok || midtransData.status_code === "400" || midtransData.status_code === "500") {
+      const errMsg = midtransData?.error_messages?.join(", ") || midtransData?.status_message || "Unknown error";
+      console.error("[CoreAPI] Midtrans charge failed:", JSON.stringify(midtransData));
       return NextResponse.json(
-        { error: "Gagal menginisialisasi payment gateway. Coba lagi beberapa saat." },
+        { error: `Gagal membuat transaksi QRIS: ${errMsg}` },
         { status: 502 }
       );
     }
 
-    const midtransData = await midtransRes.json();
+    // Extract QR string and image URL from Midtrans response
+    const qrString: string = midtransData.qr_string || "";
+    // Midtrans provides a hosted QR image URL inside actions[]
+    const generateQrAction = (midtransData.actions as any[] | undefined)?.find(
+      (a: any) => a.name === "generate-qr-code"
+    );
+    const qrImageUrl: string = generateQrAction?.url || "";
+
+    // Calculate expiry time (15 minutes from now, matching custom_expiry above)
+    const expiredAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
     // ── Record Pending Transaction ───────────────────────
+    // snapToken field is reused to store the qr_string (plain QR data)
     await prisma.topupTransaction.create({
       data: {
         orderId,
@@ -157,13 +155,18 @@ export async function POST(req: NextRequest) {
         discount,
         voucherId,
         status: "PENDING",
-        snapToken: midtransData.token,
+        snapToken: qrString, // Repurposed: stores raw QR string for reference
       },
     });
 
+    console.log(`[CoreAPI] ✅ QRIS transaction created: ${orderId}. QR ready.`);
+
     return NextResponse.json({
-      token: midtransData.token,
       orderId,
+      qrString,
+      qrImageUrl,
+      expiredAt,
+      amount: finalPrice,
     });
   } catch (error) {
     console.error("[CreateTransaction] Unexpected error:", error);

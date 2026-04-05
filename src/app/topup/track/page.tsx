@@ -4,8 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import Script from "next/script";
-import { Search, Loader2, AlertCircle, TicketCheck, ChevronRight, Package, Clock, ShieldCheck, Copy, CheckCircle2, MessageSquare, Phone, Info, CheckCheck, CreditCard, RefreshCcw } from "lucide-react";
+import { Search, Loader2, AlertCircle, TicketCheck, ChevronRight, Package, Clock, ShieldCheck, Copy, CheckCircle2, MessageSquare, Phone, Info, CheckCheck, RefreshCcw, QrCode } from "lucide-react";
 import PremiumInvoice from "@/components/shared/PremiumInvoice";
 import { formatRupiah } from "@/lib/utils";
 
@@ -78,30 +77,6 @@ function TrackOrderContent() {
      }
      
      return "waiting";
-  };
-
-  const handleResumePayment = () => {
-    if (!orderData?.snapToken) return;
-    
-    // Check if snap is loaded
-    if (typeof (window as any).snap !== "undefined") {
-      (window as any).snap.pay(orderData.snapToken, {
-        onSuccess: function () {
-          fetchOrder(orderData.orderId); // Auto-refresh on success
-        },
-        onPending: function () {
-          alert("Pembayaran Anda sedang diproses. Silakan tunggu beberapa saat.");
-        },
-        onError: function () {
-          alert("Terjadi kesalahan saat memproses pembayaran. Silakan coba lagi.");
-        },
-        onClose: function () {
-          alert("Anda menutup halaman pembayaran sebelum menyelesaikannya.");
-        }
-      });
-    } else {
-      alert("Sistem pembayaran sedang memuat, silakan tunggu sebentar dan coba lagi.");
-    }
   };
 
   return (
@@ -245,15 +220,13 @@ function TrackOrderContent() {
                          </div>
                        </div>
                        
-                       {orderData.snapToken && (
-                         <button
-                           onClick={handleResumePayment}
-                           className="w-full md:w-auto mt-2 md:mt-0 whitespace-nowrap bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/25 flex items-center justify-center gap-2"
-                         >
-                           <CreditCard className="w-5 h-5" />
-                           Lanjutkan Pembayaran
-                         </button>
-                       )}
+                       <Link
+                          href="/topup"
+                          className="w-full md:w-auto mt-2 md:mt-0 whitespace-nowrap bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/25 flex items-center justify-center gap-2"
+                        >
+                          <QrCode className="w-5 h-5" />
+                          Bayar Ulang via QRIS
+                        </Link>
                     </div>
                   )}
 
@@ -290,12 +263,7 @@ function TrackOrderContent() {
             )}
          </AnimatePresence>
 
-         {/* Midtrans Snap Script globally enabled for this page */}
-         <Script 
-           src="https://app.midtrans.com/snap/snap.js" 
-           data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY} 
-           strategy="lazyOnload" 
-         />
+         {/* Midtrans QRIS — no Snap script needed */}
 
          <div className="mt-10">
             <Link href="/" className="text-slate-400 hover:text-white font-bold flex items-center gap-2 transition-colors">
